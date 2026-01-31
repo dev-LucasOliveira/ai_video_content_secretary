@@ -1,4 +1,4 @@
-# 09:00 São Paulo (UTC-3) = 12:00 UTC — horário correto para o timezone
+# 09:00 São Paulo (UTC-3) = 12:00 UTC
 name: Daily Content Idea
 
 on:
@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  issues: write   # ler/criar/atualizar issue de histórico
-  contents: read  # checkout do repo
+  issues: write   # read/create/update history issue
+  contents: read  # checkout repo
 
 jobs:
   run:
@@ -34,7 +34,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: npm run daily
 
-      # Artifacts sempre (sucesso ou falha) para debug rápido
+      # Artifacts always (success or failure) for quick debug
       - name: Upload debug artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -43,7 +43,7 @@ jobs:
           path: debug/
           if-no-files-found: ignore
 
-      # Step Summary legível no Actions UI
+      # Step Summary in Actions UI
       - name: Append step summary
         if: always()
         run: |

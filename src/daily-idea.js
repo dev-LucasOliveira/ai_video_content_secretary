@@ -9,7 +9,7 @@ const RECENT_FOR_PROMPT = 10;
 const PREVIEW_CHARS = 1200;
 const FULL_SCRIPT_TRUNCATE = 3000;
 
-// ——— Run ID por execução: correlacionar logs e artifacts
+// ——— Run ID per execution: correlate logs and artifacts
 const runId =
   String(Date.now()) + "-" + Math.random().toString(36).slice(2, 10);
 
@@ -19,7 +19,7 @@ function requireEnv(name) {
   return v;
 }
 
-// ——— Structured logging: uma linha JSON por evento; nunca logar secrets
+// ——— Structured logging: one JSON line per event; never log secrets
 function logStructured(level, event, data = {}) {
   const payload = { level, event, runId, ...data };
   console.log(JSON.stringify(payload));
@@ -34,14 +34,14 @@ function logError(event, data) {
   logStructured("error", event, data);
 }
 
-// ——— Debug dir para artifacts (Actions upload)
+// ——— Debug dir for artifacts (Actions upload)
 function ensureDebugDir() {
   const dir = path.join(process.cwd(), "debug");
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
-// ——— Escreve metadados da execução (sem secrets) e preview do raw
+// ——— Writes run metadata (no secrets) and raw preview
 function writeDebugBundle(opts) {
   const dir = ensureDebugDir();
   const {
@@ -88,7 +88,7 @@ function writeDebugBundle(opts) {
     const safePayload = { ...payload };
     if (safePayload.full_script && safePayload.full_script.length > FULL_SCRIPT_TRUNCATE) {
       safePayload.full_script =
-        safePayload.full_script.slice(0, FULL_SCRIPT_TRUNCATE) + "\n\n[... truncado]";
+        safePayload.full_script.slice(0, FULL_SCRIPT_TRUNCATE) + "\n\n[... truncated]";
     }
     fs.writeFileSync(
       path.join(dir, "last-payload.json"),
@@ -97,20 +97,20 @@ function writeDebugBundle(opts) {
   }
 
   const summaryLines = [
-    success ? "## ✅ Daily Content Idea — Sucesso" : "## ❌ Daily Content Idea — Falha",
+    success ? "## ✅ Daily Content Idea — Success" : "## ❌ Daily Content Idea — Failure",
     "",
     `- **Run ID:** \`${runId}\``,
     `- **Total:** ${totalMs} ms`,
     `- **LLM:** ${llmMs} ms`,
     `- **Resend:** ${resendMs} ms`,
-    `- **Modelo:** ${model || "—"}`
+    `- **Model:** ${model || "—"}`
   ];
   if (success && payload) {
-    summaryLines.push("", `- **Título:** ${payload.chosen_title || "—"}`);
-    summaryLines.push(`- **Tipo:** ${payload.video_type || "—"}`);
+    summaryLines.push("", `- **Title:** ${payload.chosen_title || "—"}`);
+    summaryLines.push(`- **Type:** ${payload.video_type || "—"}`);
   }
   if (!success && errorMessage) {
-    summaryLines.push("", "### Erro", "```", errorMessage, "```");
+    summaryLines.push("", "### Error", "```", errorMessage, "```");
   }
   fs.writeFileSync(path.join(dir, "summary.md"), summaryLines.join("\n"));
 }
@@ -252,25 +252,25 @@ function buildPrompt(videoType, recentTitlesAndTags) {
   const recentBlock =
     recentTitlesAndTags.length > 0
       ? `
-ÚLTIMOS TÍTULOS/TAGS (não repita temas semelhantes):
+RECENT TITLES/TAGS (do not repeat similar themes):
 ${recentTitlesAndTags.map((x) => `- "${x.title}" | ${(x.tags || []).join(", ")}`).join("\n")}
 
-REGRAS: Não repita temas/títulos semelhantes aos últimos 10.
+RULES: Do not repeat similar themes/titles to the last 10.
 `
       : "";
 
   return `
-Você é um estrategista de conteúdo para YouTube focado em carreira dev internacional (BR -> exterior) e frontend.
+You are a YouTube content strategist focused on international dev career (BR -> abroad) and frontend.
 
-Gere UM pacote completo de vídeo do tipo: "${videoType}".
+Generate ONE complete video package of type: "${videoType}".
 ${recentBlock}
 
-REGRAS IMPORTANTES:
-- Responda APENAS com JSON válido, sem markdown.
-- Português do Brasil.
-- Duração alvo: 6 a 10 minutos.
+IMPORTANT RULES:
+- Respond ONLY with valid JSON, no markdown.
+- Output language: Brazilian Portuguese.
+- Target duration: 6 to 10 minutes.
 
-FORMATO EXATO:
+EXACT FORMAT:
 {
   "video_type": "",
   "audience": "",
@@ -300,11 +300,11 @@ FORMATO EXATO:
   "why_today": ""
 }
 
-Agora gere SOMENTE o JSON.
+Now output ONLY the JSON.
   `.trim();
 }
 
-// ——— Extrai JSON do raw: parse direto, ou primeiro { / último }; evita falha por markdown/whitespace
+// ——— Extract JSON from raw: direct parse, or first { / last }; avoids failure from markdown/whitespace
 function extractJson(raw) {
   if (!raw || typeof raw !== "string") return null;
   const trimmed = raw.trim();
@@ -321,7 +321,7 @@ function extractJson(raw) {
   return null;
 }
 
-// ——— Email readability-first: índice com âncoras, blocos, <details> para roteiro/description, TL;DR
+// ——— Email readability-first: index with anchors, blocks, <details> for script/description, TL;DR
 function toEmailHtml(payload) {
   const esc = (s) =>
     String(s ?? "")
@@ -342,26 +342,26 @@ function toEmailHtml(payload) {
   const tldr = `
     <div style="margin:20px 0; padding:16px; background:#e7f1ff; border-radius:8px;">
       <h3 style="margin:0 0 10px 0; font-size:1.15em;">📋 TL;DR</h3>
-      <p style="margin:4px 0;"><b>Tipo:</b> ${esc(payload.video_type)} &nbsp;|&nbsp; <b>Objetivo:</b> ${esc(payload.goal)}</p>
-      <p style="margin:4px 0;"><b>Duração:</b> 6–10 min</p>
-      <p style="margin:8px 0 0 0;"><b>Falar em 3 pontos:</b></p>
+      <p style="margin:4px 0;"><b>Type:</b> ${esc(payload.video_type)} &nbsp;|&nbsp; <b>Goal:</b> ${esc(payload.goal)}</p>
+      <p style="margin:4px 0;"><b>Duration:</b> 6–10 min</p>
+      <p style="margin:8px 0 0 0;"><b>Speak in 3 points:</b></p>
       <ul style="margin:4px 0; padding-left:20px;">${bullets.map((b) => `<li>${b}</li>`).join("")}</ul>
     </div>`;
 
   const nav = `
     <nav style="margin:16px 0; padding:12px; background:#f1f3f5; border-radius:8px; font-size:0.95em;">
-      <strong>Índice:</strong>
+      <strong>Index:</strong>
       <a href="#hook" style="margin:0 8px; color:#0d6efd;">Hook</a>
-      <a href="#estrutura" style="margin:0 8px; color:#0d6efd;">Estrutura</a>
+      <a href="#outline" style="margin:0 8px; color:#0d6efd;">Outline</a>
       <a href="#thumbnail" style="margin:0 8px; color:#0d6efd;">Thumbnail</a>
-      <a href="#roteiro" style="margin:0 8px; color:#0d6efd;">Roteiro</a>
+      <a href="#script" style="margin:0 8px; color:#0d6efd;">Script</a>
       <a href="#description" style="margin:0 8px; color:#0d6efd;">Description</a>
       <a href="#tags" style="margin:0 8px; color:#0d6efd;">Tags / CTA</a>
     </nav>`;
 
   const headline = `
     <h1 style="font-size:1.5em; margin:0 0 12px 0; line-height:1.3;">🎬 ${title}</h1>
-    <p style="margin:0; color:#495057;"><b>Por quê hoje:</b> ${esc(payload.why_today)}</p>`;
+    <p style="margin:0; color:#495057;"><b>Why today:</b> ${esc(payload.why_today)}</p>`;
 
   const hookBlock = block(
     "⚡ Hook",
@@ -370,8 +370,8 @@ function toEmailHtml(payload) {
   );
 
   const outlineBlock = block(
-    "🧱 Estrutura",
-    "estrutura",
+    "🧱 Outline",
+    "outline",
     `<ul style="margin:0; padding-left:20px;">${outline
       .map((it) => `<li><b>${esc(it.t)}</b> — ${esc(it.topic)}</li>`)
       .join("")}</ul>`
@@ -381,13 +381,13 @@ function toEmailHtml(payload) {
   const thumbnailBlock = block(
     "🖼️ Thumbnail",
     "thumbnail",
-    `<p style="margin:0;"><b>Visual:</b> ${esc(thumb?.visual)}<br/><b>Texto:</b> ${esc(thumb?.text)}<br/><b>Emoção:</b> ${esc(thumb?.emotion)}</p>`
+    `<p style="margin:0;"><b>Visual:</b> ${esc(thumb?.visual)}<br/><b>Text:</b> ${esc(thumb?.text)}<br/><b>Emotion:</b> ${esc(thumb?.emotion)}</p>`
   );
 
-  const roteiroBlock = block(
-    "📝 Roteiro",
-    "roteiro",
-    `<details style="margin:0;"><summary style="cursor:pointer;">Ver roteiro completo</summary><pre style="white-space:pre-wrap; background:#fff; padding:12px; border-radius:6px; margin:8px 0 0 0; font-size:0.9em;">${esc(
+  const scriptBlock = block(
+    "📝 Script",
+    "script",
+    `<details style="margin:0;"><summary style="cursor:pointer;">View full script</summary><pre style="white-space:pre-wrap; background:#fff; padding:12px; border-radius:6px; margin:8px 0 0 0; font-size:0.9em;">${esc(
       payload.full_script
     )}</pre></details>`
   );
@@ -395,13 +395,13 @@ function toEmailHtml(payload) {
   const descBlock = block(
     "📄 Description",
     "description",
-    `<details style="margin:0;"><summary style="cursor:pointer;">Ver description</summary><pre style="white-space:pre-wrap; background:#fff; padding:12px; border-radius:6px; margin:8px 0 0 0; font-size:0.9em;">${esc(
+    `<details style="margin:0;"><summary style="cursor:pointer;">View description</summary><pre style="white-space:pre-wrap; background:#fff; padding:12px; border-radius:6px; margin:8px 0 0 0; font-size:0.9em;">${esc(
       payload.description
     )}</pre></details>`
   );
 
   const tagsBlock = block(
-    "🏷️ Tags e CTA",
+    "🏷️ Tags & CTA",
     "tags",
     `<p style="margin:0;"><b>Tags:</b> ${esc((payload.tags || []).join(", "))}</p><p style="margin:8px 0 0 0;"><b>CTA:</b> ${esc(payload.cta)}</p>`
   );
@@ -414,7 +414,7 @@ function toEmailHtml(payload) {
     ${hookBlock}
     ${outlineBlock}
     ${thumbnailBlock}
-    ${roteiroBlock}
+    ${scriptBlock}
     ${descBlock}
     ${tagsBlock}
   </div>
@@ -460,7 +460,7 @@ async function main() {
   async function callLlm(temperature, extraUserMessage) {
     const t0 = Date.now();
     const messages = [
-      { role: "system", content: "Responda somente com JSON válido." },
+      { role: "system", content: "Respond only with valid JSON." },
       { role: "user", content: prompt }
     ];
     if (extraUserMessage)
@@ -482,7 +482,7 @@ async function main() {
     logWarn("json_extract_failed", { action: "retry_llm" });
     raw = await callLlm(
       0.2,
-      "Retorne apenas um único objeto JSON válido, sem markdown e sem texto antes ou depois."
+      "Return only a single valid JSON object, no markdown and no text before or after."
     );
     payload = extractJson(raw);
   }
@@ -492,7 +492,7 @@ async function main() {
 
   const resend = new Resend(RESEND_API_KEY);
   const tResend0 = Date.now();
-  const subject = `📬 Ideia de vídeo (${payload.video_type}) — ${payload.chosen_title}`;
+  const subject = `📬 Video idea (${payload.video_type}) — ${payload.chosen_title}`;
   await resend.emails.send({
     from: EMAIL_FROM,
     to: EMAIL_TO,
@@ -516,7 +516,7 @@ async function main() {
     success: true
   });
 
-  console.log("Email enviado com sucesso!");
+  console.log("Email sent successfully!");
 }
 
 main().catch((err) => {
