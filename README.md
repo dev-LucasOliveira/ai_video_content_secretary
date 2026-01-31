@@ -7,7 +7,7 @@ A system that runs daily via **GitHub Actions**, uses the **Groq API** (OpenAI-c
 ## What it does
 
 1. **Every day at 09:00 São Paulo (UTC-3)** — or on manual trigger — the workflow runs.
-2. **Groq (LLM)** generates one full video package: type (`work` / `tech` / `life`), title options, chosen title, thumbnail concepts, hook, outline, full script, description, tags, CTA, and “why today.”
+2. **Groq (LLM)** generates one full video package: type (`career_international` / `tech_frontend` / `life_productivity` / `communication_english` / `strategy_content`), title options, chosen title, thumbnail concepts, hook, outline, full script, description, tags, CTA, and “why today.”
 3. **History** is stored in a single GitHub Issue (last 50 items). The prompt receives the last 10 titles/tags so the model avoids repeating similar themes.
 4. **Resend** sends a formatted, readability-first HTML email with the idea.
 5. **Debug artifacts** (run metadata, response preview, summary) are uploaded to the Actions run and shown in the Step Summary.
@@ -132,7 +132,7 @@ If `GITHUB_TOKEN` or `GITHUB_REPOSITORY` is missing, the script still runs but s
   "items": [
     {
       "ts": "2025-01-31T12:00:00.000Z",
-      "video_type": "work",
+      "video_type": "career_international",
       "chosen_title": "...",
       "tags": ["carreira", "..."],
       "hook": "...",
@@ -159,8 +159,9 @@ If `GITHUB_TOKEN` or `GITHUB_REPOSITORY` is missing, the script still runs but s
 
 ## Video types
 
-- **Fixed by weekday:** Tuesday → `tech`, Thursday → `work`, Saturday → `life`.
-- **Other days:** Weighted random: `work` 45%, `tech` 35%, `life` 20%.
+- **Selection:** Random, with anti-repetition of 1 pass: the last type from history is excluded, then one type is chosen uniformly from the remaining. No weekday-based logic.
+- **Fallback:** If the valid type list is empty or there is no type different from the last, `career_international` is used.
+- **Valid types (helper `getValidVideoTypes()`):** `career_international`, `tech_frontend`, `life_productivity`, `communication_english`, `strategy_content`.
 
 ---
 

@@ -8,6 +8,7 @@ const MAX_HISTORY_ITEMS = 50;
 const RECENT_FOR_PROMPT = 10;
 const PREVIEW_CHARS = 1200;
 const FULL_SCRIPT_TRUNCATE = 3000;
+const MS_14_DAYS = 14 * 24 * 60 * 60 * 1000;
 
 // ——— Run ID per execution: correlate logs and artifacts
 const runId =
@@ -115,26 +116,48 @@ function writeDebugBundle(opts) {
   fs.writeFileSync(path.join(dir, "summary.md"), summaryLines.join("\n"));
 }
 
-function weekdayKey(date = new Date()) {
-  const d = date.getUTCDay();
-  return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d];
+// ——— Video types with context for better idea generation
+const VIDEO_TYPES = {
+  career_international:
+    "Conteúdos sobre trabalhar no exterior, rotina com empresa americana, soft skills de alto impacto, mentalidade, crescimento e adaptação.",
+  tech_frontend:
+    "Conteúdos técnicos práticos sobre frontend moderno, ferramentas, frameworks, boas práticas, performance, UI/UX para dev FE.",
+  life_productivity:
+    "Conteúdos sobre vida de dev remoto, produtividade, hábitos, rotina e equilíbrio.",
+  communication_english:
+    "Conteúdos sobre inglês aplicado à carreira dev internacional, comunicação no dia a dia, práticas reais, dicas objetivas.",
+  strategy_content:
+    "Conteúdos meta sobre criação de conteúdo, carreira como criador dev, estratégia, thumbnail/title thinking, storytelling."
+};
+
+function getValidVideoTypes() {
+  return Object.keys(VIDEO_TYPES);
 }
 
-function chooseVideoType(dayKey) {
-  const fixed = { tue: "tech", thu: "work", sat: "life" };
-  if (fixed[dayKey]) return fixed[dayKey];
-  const weighted = [
-    ["work", 0.45],
-    ["tech", 0.35],
-    ["life", 0.2]
-  ];
-  const r = Math.random();
-  let acc = 0;
-  for (const [k, w] of weighted) {
-    acc += w;
-    if (r <= acc) return k;
-  }
-  return "work";
+// ——— Anti-repetition: exclude types used in last 14 days; fallback if all types excluded
+const FALLBACK_VIDEO_TYPE = "career_international";
+
+function getRestriction14(items) {
+  const cutoff = Date.now() - MS_14_DAYS;
+  const inWindow = (items || []).filter((i) => {
+    if (!i?.ts) return false;
+    const t = new Date(i.ts).getTime();
+    return Number.isFinite(t) && t >= cutoff;
+  });
+  const titles = [...new Set(inWindow.map((i) => i.chosen_title).filter(Boolean))];
+  const types = [...new Set(inWindow.map((i) => i.video_type).filter(Boolean))];
+  const tags = [...new Set(inWindow.flatMap((i) => i.tags || []).filter(Boolean))];
+  return { titles, types, tags };
+}
+
+function chooseVideoType(typesToExclude) {
+  const valid = getValidVideoTypes();
+  if (!valid || valid.length === 0) return FALLBACK_VIDEO_TYPE;
+  const exclude = Array.isArray(typesToExclude) ? typesToExclude : [];
+  const available = valid.filter((t) => !exclude.includes(t));
+  const pool = available.length > 0 ? available : valid;
+  const idx = Math.floor(Math.random() * pool.length);
+  return pool[idx];
 }
 
 // ——— Histórico: issue fixa como "DB"; body = JSON com até 50 itens
@@ -248,31 +271,77 @@ async function saveHistory(newItem, existing) {
   });
 }
 
-function buildPrompt(videoType, recentTitlesAndTags) {
+const REMOTE_WORK_START = new Date(2022, 11, 1); // Dec 2022
+
+function buildPrompt(videoType, recentTitlesAndTags, restriction14) {
+  const typeContext = VIDEO_TYPES[videoType] ?? videoType;
+  const yearsRemote = Math.floor(
+    (Date.now() - REMOTE_WORK_START.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+  );
+  const yearsLabel =
+    yearsRemote <= 0 ? "1 year" : yearsRemote === 1 ? "1 year" : `${yearsRemote} years`;
   const recentBlock =
     recentTitlesAndTags.length > 0
       ? `
 RECENT TITLES/TAGS (do not repeat similar themes):
 ${recentTitlesAndTags.map((x) => `- "${x.title}" | ${(x.tags || []).join(", ")}`).join("\n")}
 
-RULES: Do not repeat similar themes/titles to the last 10.
+Do not repeat similar themes or angles from the last 10.
 `
       : "";
 
+  const r14 = restriction14 || { titles: [], types: [], tags: [] };
+  const hasRestriction =
+    r14.titles.length > 0 || r14.types.length > 0 || r14.tags.length > 0;
+  const restrictionBlock = hasRestriction
+    ? `
+——— RESTRIÇÕES DE NÃO REPETIÇÃO (últimos 14 dias) ———
+Não repetir temas, títulos, variações fortes ou conceitos similares aos títulos abaixo:
+${r14.titles.length > 0 ? r14.titles.map((t) => `- ${t}`).join("\n") : "(nenhum)"}
+
+Não repetir os tipos dos últimos 14 dias: ${r14.types.length > 0 ? r14.types.join(", ") : "(nenhum)"}
+${r14.tags.length > 0 ? `Temas/tags recentes a evitar: ${r14.tags.join(", ")}` : ""}
+
+Gere algo realmente novo e diferente dentro do tipo selecionado.
+`
+    : "";
+
   return `
-You are a YouTube content strategist focused on international dev career (BR -> abroad) and frontend.
+You are writing a video brief for a real creator. Use the context below and output ONLY valid JSON.
 
-Generate ONE complete video package of type: "${videoType}".
+——— CREATOR CONTEXT (fixed, real) ———
+- Brazilian Frontend developer, ${yearsLabel} working 100% remotely for companies in California (since Dec/2022).
+- Fast career progression and technical growth; content is based on real experience, not theory.
+- Channel focus: international dev career, frontend, remote life, English for devs, productivity, real stories and pain points.
+- Goals: useful, actionable ideas; honest content; topics that Brazilian devs trying to work abroad actually face.
+- Every idea must be something the creator could record tomorrow—real, not fictional or hypothetical.
+
+——— VIDEO TYPE FOR THIS BRIEF ———
+Type key (use exactly in JSON): "${videoType}"
+Context: ${typeContext}
 ${recentBlock}
+${restrictionBlock}
 
-IMPORTANT RULES:
-- Respond ONLY with valid JSON, no markdown.
-- Output language: Brazilian Portuguese.
-- Target duration: 6 to 10 minutes.
+——— INSTRUCTIONS ———
+1. THEME: Strong, original, relevant. Root it in real problems (e.g. interviews, timezone, English, salary, visa, impostor syndrome, async work). Avoid generic or superficial angles.
+2. TITLE: Strong and strategic for YouTube. Clear benefit or curiosity; no cheap clickbait. "chosen_title" must be the best of "title_options".
+3. THUMBNAIL: Concepts must be concrete and visual (specific scene, metaphor, or moment)—not generic dev-at-laptop. "chosen" = the best concept.
+4. HOOK (first 10s): Address a real pain or desire of the audience. Something they would immediately recognize. No filler.
+5. OUTLINE: Clear segments with real substance. 6–10 min total; topics must be specific, not vague.
+6. FULL_SCRIPT: Complete script with storytelling (problem → journey → takeaway). Natural, conversational Brazilian Portuguese. Ready to record.
+7. DESCRIPTION: Optimized for search and discovery, but natural to read. Include key terms and one clear value proposition.
+8. TAGS: Useful for discovery; mix of Portuguese and English where it makes sense.
+9. CTA: One clear next step (subscribe, comment, or specific resource).
+10. WHY_TODAY: Real relevance—market trend, seasonality, hiring cycle, tech news, or recurring pain. Be specific, not generic.
 
-EXACT FORMAT:
+——— OUTPUT ———
+- Language: Brazilian Portuguese (all text fields).
+- Respond with ONLY the JSON object below. No markdown, no explanation before or after.
+- Set "video_type" to exactly "${videoType}".
+
+EXACT JSON FORMAT:
 {
-  "video_type": "",
+  "video_type": "${videoType}",
   "audience": "",
   "goal": "",
   "title_options": ["", "", ""],
@@ -300,7 +369,7 @@ EXACT FORMAT:
   "why_today": ""
 }
 
-Now output ONLY the JSON.
+Output ONLY the JSON.
   `.trim();
 }
 
@@ -439,15 +508,14 @@ async function main() {
     )
   });
 
-  const dayKey = weekdayKey();
-  const videoType = chooseVideoType(dayKey);
-
   const history = await loadHistory();
+  const restriction14 = getRestriction14(history.items || []);
+  const videoType = chooseVideoType(restriction14.types);
   const recent = (history.items || []).slice(0, RECENT_FOR_PROMPT).map((i) => ({
     title: i.chosen_title,
     tags: i.tags
   }));
-  const prompt = buildPrompt(videoType, recent);
+  const prompt = buildPrompt(videoType, recent, restriction14);
 
   const client = new OpenAI({
     apiKey: GROQ_API_KEY,
