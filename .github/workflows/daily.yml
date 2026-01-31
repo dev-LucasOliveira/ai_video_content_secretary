@@ -1,0 +1,53 @@
+# 09:00 São Paulo (UTC-3) = 12:00 UTC — horário correto para o timezone
+name: Daily Content Idea
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write   # ler/criar/atualizar issue de histórico
+  contents: read  # checkout do repo
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run daily script
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          GROQ_MODEL: ${{ secrets.GROQ_MODEL }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: npm run daily
+
+      # Artifacts sempre (sucesso ou falha) para debug rápido
+      - name: Upload debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-artifacts
+          path: debug/
+          if-no-files-found: ignore
+
+      # Step Summary legível no Actions UI
+      - name: Append step summary
+        if: always()
+        run: |
+          if [ -f debug/summary.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat debug/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi

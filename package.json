@@ -1,0 +1,12 @@
+{
+  "name": "daily-content-idea",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "daily": "node src/daily-idea.js"
+  },
+  "dependencies": {
+    "openai": "^4.0.0",
+    "resend": "^4.0.0"
+  }
+}

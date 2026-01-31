@@ -1,0 +1,15 @@
+{
+  "runId": "1769874926902-wqfngyt0",
+  "timestamp": "2026-01-31T15:55:28.378Z",
+  "totalMs": 1476,
+  "llmMs": 0,
+  "resendMs": 0,
+  "model": "llama-3.3-70b-versatile",
+  "success": false,
+  "envVarsPresent": [
+    "GROQ_API_KEY",
+    "RESEND_API_KEY",
+    "EMAIL_TO",
+    "EMAIL_FROM"
+  ]
+}
