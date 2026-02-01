@@ -585,7 +585,8 @@ async function main() {
   if (lastTrendsPreview) {
     logInfo("trends_loaded", {
       keywords_count: lastTrendsPreview.keywords_count ?? 0,
-      terms_in_preview: lastTrendsPreview.terms_in_preview?.length ?? 0
+      terms_in_preview: lastTrendsPreview.terms_in_preview ?? [],
+      terms_in_preview_count: lastTrendsPreview.terms_in_preview?.length ?? 0
     });
   }
   const prompt = buildPrompt(videoType, recent, restriction14, trendsSection.text);

@@ -10,8 +10,10 @@ import time
 from datetime import datetime, timezone
 
 TRENDS_FILE = "trends.json"
-TIMEFRAME = "now 7-d"
+# "today 3-m" costuma retornar mais dados que "now 7-d" (menos 404/vazio)
+TIMEFRAME = "today 3-m"
 MAX_PER_LIST = 20
+SLEEP_BETWEEN_REQUESTS = 1.0  # evita rate limit
 
 KEYWORDS_DEV = [
     "react", "javascript", "typescript", "frontend", "developer",
@@ -76,6 +78,9 @@ def safe_related_topics(pytrends, term, geo):
     try:
         pytrends.build_payload([term], timeframe=TIMEFRAME, geo=geo)
         rt = pytrends.related_topics()
+    except IndexError:
+        # PyTrends internamente faz [0] em DataFrame/lista vazia; retornar vazio sem WARN
+        return result, None
     except Exception as e:
         return result, str(e)
     if not rt or term not in rt:
@@ -88,6 +93,8 @@ def safe_related_topics(pytrends, term, geo):
         top_df = term_data.get("top")
         result["topics_rising"] = safe_df_to_list(rising_df, col="topic_title", limit=MAX_PER_LIST)
         result["topics_top"] = safe_df_to_list(top_df, col="topic_title", limit=MAX_PER_LIST)
+    except IndexError:
+        return result, None
     except Exception as e:
         return result, str(e)
     return result, None
@@ -130,9 +137,9 @@ def main():
                 out["data"][term][geo]["rising"] = rq_result["rising"]
                 out["data"][term][geo]["top"] = rq_result["top"]
                 total_items += len(rq_result["rising"]) + len(rq_result["top"])
-            time.sleep(0.3)
+            time.sleep(SLEEP_BETWEEN_REQUESTS)
 
-            # related_topics
+            # related_topics (costuma falhar/vir vazio; não quebra o fluxo)
             rt_result, rt_err = safe_related_topics(pytrends, term, geo)
             if rt_err:
                 print(f"WARN: {term} {geo} related_topics: {rt_err}", file=sys.stderr)
@@ -140,7 +147,7 @@ def main():
                 out["data"][term][geo]["topics_rising"] = rt_result["topics_rising"]
                 out["data"][term][geo]["topics_top"] = rt_result["topics_top"]
                 total_items += len(rt_result["topics_rising"]) + len(rt_result["topics_top"])
-            time.sleep(0.3)
+            time.sleep(SLEEP_BETWEEN_REQUESTS)
 
         # suggestions (no geo)
         try:
@@ -157,7 +164,7 @@ def main():
         except Exception as e:
             print(f"WARN: {term} suggestions: {e}", file=sys.stderr)
             out["data"][term]["suggestions"] = []
-        time.sleep(0.3)
+        time.sleep(SLEEP_BETWEEN_REQUESTS)
 
     _write(out, len(KEYWORDS_DEV), total_items)
 
