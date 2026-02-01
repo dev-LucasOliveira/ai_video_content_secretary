@@ -1,4 +1,4 @@
-# Quando uma issue com label "favorite" é criada, anexa ao weekly e fecha a issue
+# When an issue with label "favorite" or title "Favorite: ..." is opened, append to weekly and close
 name: Save Favorite
 
 on:

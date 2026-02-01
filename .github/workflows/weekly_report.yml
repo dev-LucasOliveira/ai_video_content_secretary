@@ -1,4 +1,4 @@
-# Todo sábado 9h BRT (12h UTC): envia relatório de favoritos por e-mail e arquiva
+# Every Saturday 09:00 BRT (12:00 UTC): email weekly favorites report and archive
 name: Weekly Favorites Report
 
 on:

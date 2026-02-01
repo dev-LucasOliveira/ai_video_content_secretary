@@ -114,6 +114,10 @@ function writeDebugBundle(opts) {
   }
   if (trendsPreview != null) {
     summaryLines.push("", `- **Trends:** yes (${trendsPreview.keywords_count ?? 0} keywords, preview: ${(trendsPreview.terms_in_preview ?? []).join(", ")})`);
+    fs.writeFileSync(
+      path.join(dir, "trends-preview.json"),
+      JSON.stringify(trendsPreview, null, 2)
+    );
   } else {
     summaryLines.push("", "- **Trends:** no (trends.json missing or empty)");
   }
@@ -121,13 +125,6 @@ function writeDebugBundle(opts) {
     summaryLines.push("", "### Error", "```", errorMessage, "```");
   }
   fs.writeFileSync(path.join(dir, "summary.md"), summaryLines.join("\n"));
-
-  if (trendsPreview != null) {
-    fs.writeFileSync(
-      path.join(dir, "trends-preview.json"),
-      JSON.stringify(trendsPreview, null, 2)
-    );
-  }
 }
 
 // ——— Video types with context for better idea generation

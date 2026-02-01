@@ -1,9 +1,13 @@
-# 09:00 São Paulo (UTC-3) = 12:00 UTC
+# Mon–Fri + Sun, 9h / 9h05 / 9h10 / 9h15 / 9h20 BRT (UTC-3) = 12:00 / 12:05 / 12:10 / 12:15 / 12:20 UTC
 name: Daily Content Idea
 
 on:
   schedule:
-    - cron: "0 12 * * *"
+    - cron: "0 12 * * 0,1-5"
+    - cron: "5 12 * * 0,1-5"
+    - cron: "10 12 * * 0,1-5"
+    - cron: "15 12 * * 0,1-5"
+    - cron: "20 12 * * 0,1-5"
   workflow_dispatch:
 
 permissions:

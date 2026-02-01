@@ -6,7 +6,7 @@ A system that runs daily via **GitHub Actions**, uses the **Groq API** (OpenAI-c
 
 ## What it does
 
-1. **Every day at 09:00 São Paulo (UTC-3)** — or on manual trigger — the workflow runs.
+1. **Mon–Fri + Sun at 9h, 9h05, 9h10, 9h15, 9h20 São Paulo (UTC-3)** — or on manual trigger — the workflow runs.
 2. **Groq (LLM)** generates one full video package: type (`career_international` / `tech_frontend` / `life_productivity` / `communication_english` / `strategy_content`), title options, chosen title, thumbnail concepts, hook, outline, full script, description, tags, CTA, and “why today.”
 3. **History** is stored in a single GitHub Issue (last 50 items). The prompt receives the last 10 titles/tags so the model avoids repeating similar themes.
 4. **Resend** sends a formatted, readability-first HTML email with the idea.
@@ -18,11 +18,13 @@ A system that runs daily via **GitHub Actions**, uses the **Groq API** (OpenAI-c
 
 | Feature | Description |
 |--------|-------------|
-| **Cron** | 09:00 São Paulo = `0 12 * * *` UTC |
+| **Cron** | Mon–Fri + Sun 9h / 9h05 / 9h10 / 9h15 / 9h20 BRT = `0,5,10,15,20 12 * * 0,1-5` UTC |
 | **History** | GitHub Issue `daily-content-idea-history` as JSON storage (max 50 items, no DB) |
-| **Anti-repetition** | Last 10 titles/tags injected into prompt with “don’t repeat similar themes” |
-| **Observability** | Structured JSON logs, run ID, timings (total, LLM, Resend), debug bundle |
-| **Email** | Index with anchors, TL;DR, collapsible script/description, inline styles (Gmail-safe) |
+| **Anti-repetition** | 14-day window: types/titles/tags from last 14 days excluded; prompt gets "don't repeat" block |
+| **Trends** | PyTrends → `trends.json`; prompt gets a short "real trends" block (BR/US dev keywords) |
+| **Favorites** | Link in daily email → GitHub Issue (template); workflow appends to weekly, closes issue; Saturday report emails and archives |
+| **Observability** | Structured JSON logs, run ID, timings (total, LLM, Resend), debug bundle, Step Summary with Trends yes/no |
+| **Email** | Index with anchors, TL;DR, collapsible script/description, inline styles (Gmail-safe), "Save to Favorites" link |
 | **Robust JSON** | `extractJson` (direct parse + first `{` / last `}`) + one LLM retry at lower temperature |
 
 ---
@@ -86,15 +88,28 @@ npm run daily
 
 ```
 .
-├── .github/workflows/
-│   └── daily.yml          # Cron 12:00 UTC + workflow_dispatch; permissions; artifact upload; step summary
+├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   │   └── favorite.yml   # "Save Favorite Idea" form (idea_title, summary)
+│   └── workflows/
+│       ├── daily.yml      # Mon–Fri + Sun 12:00/12:05/12:10/12:15/12:20 UTC; PyTrends; npm run daily; debug artifacts
+│       ├── save_favorite.yml   # On issue opened (label/title "Favorite: ...") → append weekly, close issue
+│       └── weekly_report.yml  # Saturday 12:00 UTC; email weekly favorites, archive, clear weekly
+├── favorites/
+│   ├── favorites-weekly.md   # Current week favorites (appended by save_favorite)
+│   └── favorites-archive.md # Past weeks (appended by weekly_report)
+├── scripts/
+│   ├── append-favorite.js   # Parses issue body, appends to favorites-weekly.md
+│   └── weekly-report.js      # Sends Resend email, appends to archive, clears weekly
 ├── src/
-│   └── daily-idea.js      # Main script: Groq, history, Resend, debug bundle, extractJson
-├── debug/                 # Generated at runtime (add to .gitignore)
-│   ├── last-run.json      # Run metadata (no secrets)
+│   └── daily-idea.js      # Main: Groq, history, trends, Resend, debug bundle, extractJson
+├── trends.py              # Fetches Google Trends (BR/US) for dev keywords → trends.json
+├── debug/                 # Generated at runtime (.gitignore)
+│   ├── last-run.json
 │   ├── last-response-preview.txt
-│   ├── last-payload.json  # Parsed payload (full_script truncated)
-│   └── summary.md         # For GitHub Step Summary
+│   ├── last-payload.json
+│   ├── summary.md
+│   └── trends-preview.json
 ├── package.json
 └── README.md
 ```
@@ -105,7 +120,7 @@ npm run daily
 
 ### On schedule
 
-The workflow runs **daily at 12:00 UTC** (09:00 São Paulo).
+The workflow runs **Mon–Fri + Sun at 12:00, 12:05, 12:10, 12:15, 12:20 UTC** (9h, 9h05, 9h10, 9h15, 9h20 São Paulo).
 
 ### Manual run
 
@@ -159,9 +174,9 @@ If `GITHUB_TOKEN` or `GITHUB_REPOSITORY` is missing, the script still runs but s
 
 ## Video types
 
-- **Selection:** Random, with anti-repetition of 1 pass: the last type from history is excluded, then one type is chosen uniformly from the remaining. No weekday-based logic.
-- **Fallback:** If the valid type list is empty or there is no type different from the last, `career_international` is used.
-- **Valid types (helper `getValidVideoTypes()`):** `career_international`, `tech_frontend`, `life_productivity`, `communication_english`, `strategy_content`.
+- **Selection:** Random, with 14-day anti-repetition: types (and related titles/tags) from the last 14 days are excluded; one type is chosen uniformly from the remaining.
+- **Fallback:** If all types are excluded or none available, `career_international` is used.
+- **Valid types:** `career_international`, `tech_frontend`, `life_productivity`, `communication_english`, `strategy_content`.
 
 ---
 
