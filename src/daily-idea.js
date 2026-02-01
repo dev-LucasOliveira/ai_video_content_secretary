@@ -296,46 +296,40 @@ function loadTrends() {
   }
 }
 
-// ——— Build trends section for prompt: summarized (top 10 BR/US, max 3 terms for related/suggestions)
+// ——— Build "Tendências Reais DEV" section: max 3 keywords, max 5 items per list
 function buildTrendsSection(trends) {
   if (!trends || typeof trends !== "object") return { text: "", preview: null };
+  const data = trends.data ?? {};
+  const keywords = trends.keywords_used ?? Object.keys(data);
   const preview = {
-    generated_at_utc: trends.generated_at_utc ?? null,
-    trending_br_count: 0,
-    trending_us_count: 0,
-    related_terms: [],
-    suggestions_terms: []
+    generated_at: trends.generated_at ?? null,
+    keywords_count: keywords.length,
+    terms_in_preview: []
   };
   const lines = [];
-  lines.push("——— CONTEXTO DE TENDÊNCIAS ———");
-  const ts = trends.trending_searches ?? {};
-  const br = (ts.BR ?? []).slice(0, 10);
-  const us = (ts.US ?? []).slice(0, 10);
-  preview.trending_br_count = br.length;
-  preview.trending_us_count = us.length;
-  if (br.length > 0) lines.push("Trending BR (top 10): " + br.join(", "));
-  if (us.length > 0) lines.push("Trending US (top 10): " + us.join(", "));
-  const rq = trends.related_queries ?? {};
-  const rqTerms = Object.keys(rq).slice(0, 3);
-  preview.related_terms = rqTerms;
-  for (const term of rqTerms) {
-    const geo = rq[term] ?? {};
-    const brR = (geo.BR?.rising ?? []).slice(0, 5);
-    const brT = (geo.BR?.top ?? []).slice(0, 5);
-    const usR = (geo.US?.rising ?? []).slice(0, 5);
-    const usT = (geo.US?.top ?? []).slice(0, 5);
-    if (brR.length || brT.length || usR.length || usT.length) {
-      lines.push(`Related "${term}": BR rising: ${brR.join(", ") || "-"} | top: ${brT.join(", ") || "-"}; US rising: ${usR.join(", ") || "-"} | top: ${usT.join(", ") || "-"}`);
-    }
+  lines.push("——— TENDÊNCIAS REAIS DEV ———");
+  const terms = keywords.slice(0, 3);
+  preview.terms_in_preview = terms;
+  const maxItems = 5;
+  for (const term of terms) {
+    const entry = data[term];
+    if (!entry || typeof entry !== "object") continue;
+    const br = entry.BR ?? {};
+    const us = entry.US ?? {};
+    const parts = [];
+    if ((br.rising ?? []).length) parts.push(`BR rising: ${(br.rising ?? []).slice(0, maxItems).join(", ")}`);
+    if ((br.top ?? []).length) parts.push(`BR top: ${(br.top ?? []).slice(0, maxItems).join(", ")}`);
+    if ((us.rising ?? []).length) parts.push(`US rising: ${(us.rising ?? []).slice(0, maxItems).join(", ")}`);
+    if ((us.top ?? []).length) parts.push(`US top: ${(us.top ?? []).slice(0, maxItems).join(", ")}`);
+    if ((br.topics_rising ?? []).length) parts.push(`BR topics↑: ${(br.topics_rising ?? []).slice(0, maxItems).join(", ")}`);
+    if ((br.topics_top ?? []).length) parts.push(`BR topics: ${(br.topics_top ?? []).slice(0, maxItems).join(", ")}`);
+    if ((us.topics_rising ?? []).length) parts.push(`US topics↑: ${(us.topics_rising ?? []).slice(0, maxItems).join(", ")}`);
+    if ((us.topics_top ?? []).length) parts.push(`US topics: ${(us.topics_top ?? []).slice(0, maxItems).join(", ")}`);
+    if (parts.length) lines.push(`"${term}": ${parts.join(" | ")}`);
+    const sug = (entry.suggestions ?? []).slice(0, maxItems);
+    if (sug.length) lines.push(`  suggestions: ${sug.join(", ")}`);
   }
-  const sug = trends.suggestions ?? {};
-  const sugTerms = Object.keys(sug).slice(0, 3);
-  preview.suggestions_terms = sugTerms;
-  for (const term of sugTerms) {
-    const list = (sug[term] ?? []).slice(0, 5);
-    if (list.length) lines.push(`Suggestions "${term}": ${list.join(", ")}`);
-  }
-  lines.push("Use esses sinais como inspiração, mas mantenha relevância para dev BR buscando remoto exterior.");
+  lines.push("Use esse contexto de tendências reais do nicho DEV (frontend, carreira internacional, inglês, produtividade, mercado exterior) para inspirar o tema atual. Mantenha relevância para dev BR buscando remoto/exterior.");
   const text = lines.length > 1 ? lines.join("\n") + "\n" : "";
   return { text, preview };
 }
@@ -590,10 +584,8 @@ async function main() {
   lastTrendsPreview = trendsSection.preview ?? null;
   if (lastTrendsPreview) {
     logInfo("trends_loaded", {
-      trending_br: lastTrendsPreview.trending_br_count,
-      trending_us: lastTrendsPreview.trending_us_count,
-      related_terms: lastTrendsPreview.related_terms?.length ?? 0,
-      suggestions_terms: lastTrendsPreview.suggestions_terms?.length ?? 0
+      keywords_count: lastTrendsPreview.keywords_count ?? 0,
+      terms_in_preview: lastTrendsPreview.terms_in_preview?.length ?? 0
     });
   }
   const prompt = buildPrompt(videoType, recent, restriction14, trendsSection.text);
