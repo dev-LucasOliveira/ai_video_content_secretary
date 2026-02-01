@@ -20,15 +20,77 @@ KEYWORDS_DEV = [
     "web performance", "design system", "react hooks", "node js",
 ]
 
+# Column names that related_queries / related_topics may return (first match wins)
+QUERY_COLS = ["query", "title", "value"]
+TOPIC_COLS = ["topic_title", "title", "topic_mid", "topic_type"]
 
-def _list_from_df(df, max_items=20):
-    if df is None or df.empty:
+
+def safe_df_to_list(df, col=None, limit=20):
+    """Extract a list from a DataFrame column. Never raises; returns [] on any issue."""
+    if df is None:
         return []
-    col = df.columns[0] if len(df.columns) else None
-    if col is None:
+    if getattr(df, "empty", True):
         return []
-    out = df[col].dropna().astype(str).tolist()
-    return out[:max_items]
+    cols = list(getattr(df, "columns", []))
+    if not cols:
+        return []
+    # Prefer explicit col, then try known names, then first column
+    to_try = ([col] if col and col in cols else []) + QUERY_COLS + TOPIC_COLS + [cols[0]]
+    for c in to_try:
+        if c not in cols:
+            continue
+        try:
+            out = df[c].dropna().astype(str).head(limit).tolist()
+            return out[:limit] if isinstance(out, list) else []
+        except Exception:
+            continue
+    return []
+
+
+def safe_related_queries(pytrends, term, geo):
+    """Return { 'rising': [...], 'top': [...] }. Never raises; uses safe_df_to_list."""
+    result = {"rising": [], "top": []}
+    try:
+        pytrends.build_payload([term], timeframe=TIMEFRAME, geo=geo)
+        rq = pytrends.related_queries()
+    except Exception as e:
+        return result, str(e)
+    if not rq or term not in rq:
+        return result, "no data"
+    term_data = rq.get(term)
+    if term_data is None:
+        return result, "no data"
+    try:
+        rising_df = term_data.get("rising")
+        top_df = term_data.get("top")
+        result["rising"] = safe_df_to_list(rising_df, limit=MAX_PER_LIST)
+        result["top"] = safe_df_to_list(top_df, limit=MAX_PER_LIST)
+    except Exception as e:
+        return result, str(e)
+    return result, None
+
+
+def safe_related_topics(pytrends, term, geo):
+    """Return { 'topics_rising': [...], 'topics_top': [...] }. Prefer topic_title column."""
+    result = {"topics_rising": [], "topics_top": []}
+    try:
+        pytrends.build_payload([term], timeframe=TIMEFRAME, geo=geo)
+        rt = pytrends.related_topics()
+    except Exception as e:
+        return result, str(e)
+    if not rt or term not in rt:
+        return result, "no data"
+    term_data = rt.get(term)
+    if term_data is None:
+        return result, "no data"
+    try:
+        rising_df = term_data.get("rising")
+        top_df = term_data.get("top")
+        result["topics_rising"] = safe_df_to_list(rising_df, col="topic_title", limit=MAX_PER_LIST)
+        result["topics_top"] = safe_df_to_list(top_df, col="topic_title", limit=MAX_PER_LIST)
+    except Exception as e:
+        return result, str(e)
+    return result, None
 
 
 def main():
@@ -43,14 +105,14 @@ def main():
         from pytrends.request import TrendReq
     except ImportError:
         print("WARN: pytrends not installed; run: pip install pytrends pandas", file=sys.stderr)
-        _write(out, total_items)
+        _write(out, len(KEYWORDS_DEV), total_items)
         return
 
     try:
         pytrends = TrendReq(hl="en-US", tz=360)
     except Exception as e:
         print(f"WARN: TrendReq failed: {e}", file=sys.stderr)
-        _write(out, total_items)
+        _write(out, len(KEYWORDS_DEV), total_items)
         return
 
     for term in KEYWORDS_DEV:
@@ -60,27 +122,25 @@ def main():
             "suggestions": [],
         }
         for geo in ("BR", "US"):
-            try:
-                pytrends.build_payload([term], timeframe=TIMEFRAME, geo=geo)
-                # related_queries
-                rq = pytrends.related_queries()
-                if term in rq and rq[term]:
-                    for key in ("rising", "top"):
-                        if key in rq[term] and rq[term][key] is not None and not rq[term][key].empty:
-                            lst = _list_from_df(rq[term][key], MAX_PER_LIST)
-                            out["data"][term][geo][key] = lst
-                            total_items += len(lst)
-                # related_topics
-                rt = pytrends.related_topics()
-                if term in rt and rt[term]:
-                    for key in ("rising", "top"):
-                        if key in rt[term] and rt[term][key] is not None and not rt[term][key].empty:
-                            lst = _list_from_df(rt[term][key], MAX_PER_LIST)
-                            out["data"][term][geo][f"topics_{key}"] = lst
-                            total_items += len(lst)
-            except Exception as e:
-                print(f"WARN: {term} {geo}: {e}", file=sys.stderr)
-            time.sleep(0.5)
+            # related_queries
+            rq_result, rq_err = safe_related_queries(pytrends, term, geo)
+            if rq_err:
+                print(f"WARN: {term} {geo} related_queries: {rq_err}", file=sys.stderr)
+            else:
+                out["data"][term][geo]["rising"] = rq_result["rising"]
+                out["data"][term][geo]["top"] = rq_result["top"]
+                total_items += len(rq_result["rising"]) + len(rq_result["top"])
+            time.sleep(0.3)
+
+            # related_topics
+            rt_result, rt_err = safe_related_topics(pytrends, term, geo)
+            if rt_err:
+                print(f"WARN: {term} {geo} related_topics: {rt_err}", file=sys.stderr)
+            else:
+                out["data"][term][geo]["topics_rising"] = rt_result["topics_rising"]
+                out["data"][term][geo]["topics_top"] = rt_result["topics_top"]
+                total_items += len(rt_result["topics_rising"]) + len(rt_result["topics_top"])
+            time.sleep(0.3)
 
         # suggestions (no geo)
         try:
@@ -95,17 +155,17 @@ def main():
                 out["data"][term]["suggestions"] = []
             total_items += len(out["data"][term]["suggestions"])
         except Exception as e:
-            print(f"WARN: suggestions {term}: {e}", file=sys.stderr)
+            print(f"WARN: {term} suggestions: {e}", file=sys.stderr)
             out["data"][term]["suggestions"] = []
         time.sleep(0.3)
 
-    _write(out, total_items)
+    _write(out, len(KEYWORDS_DEV), total_items)
 
 
-def _write(data, total_items):
+def _write(data, terms_count, total_items):
     with open(TRENDS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"TRENDS_OK {total_items}")
+    print(f"TRENDS_OK terms={terms_count} total_items={total_items}")
 
 
 if __name__ == "__main__":
