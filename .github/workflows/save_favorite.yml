@@ -15,8 +15,16 @@ jobs:
     steps:
       - id: check_label
         run: |
+          # Labels from issue form are sometimes empty in the opened event; use title prefix as fallback
+          TITLE="${{ github.event.issue.title }}"
           LABELS='${{ tojson(github.event.issue.labels) }}'
-          echo "has_favorite=$([ -n "$(echo "$LABELS" | grep -o '"name":"favorite"')" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          HAS_LABEL=$([ -n "$(echo "$LABELS" | grep -o '"name":"favorite"')" ] && echo true || echo false)
+          HAS_TITLE_PREFIX=$([ -n "$(echo "$TITLE" | grep -i '^Favorite:')" ] && echo true || echo false)
+          if [ "$HAS_LABEL" = true ] || [ "$HAS_TITLE_PREFIX" = true ]; then
+            echo "has_favorite=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_favorite=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
         if: steps.check_label.outputs.has_favorite == 'true'
 
