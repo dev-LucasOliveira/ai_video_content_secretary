@@ -23,6 +23,16 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch trends (PyTrends)
+        continue-on-error: true
+        run: |
+          pip install pytrends pandas
+          python trends.py
+
       - name: Run daily script
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -40,7 +50,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: debug-artifacts
-          path: debug/
+          path: |
+            debug/
+            trends.json
           if-no-files-found: ignore
 
       # Step Summary in Actions UI

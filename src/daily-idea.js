@@ -13,6 +13,7 @@ const MS_14_DAYS = 14 * 24 * 60 * 60 * 1000;
 // ——— Run ID per execution: correlate logs and artifacts
 const runId =
   String(Date.now()) + "-" + Math.random().toString(36).slice(2, 10);
+let lastTrendsPreview = null;
 
 function requireEnv(name) {
   const v = process.env[name];
@@ -53,7 +54,8 @@ function writeDebugBundle(opts) {
     rawPreview,
     payload,
     success,
-    errorMessage
+    errorMessage,
+    trendsPreview
   } = opts;
 
   const lastRun = {
@@ -114,6 +116,13 @@ function writeDebugBundle(opts) {
     summaryLines.push("", "### Error", "```", errorMessage, "```");
   }
   fs.writeFileSync(path.join(dir, "summary.md"), summaryLines.join("\n"));
+
+  if (trendsPreview != null) {
+    fs.writeFileSync(
+      path.join(dir, "trends-preview.json"),
+      JSON.stringify(trendsPreview, null, 2)
+    );
+  }
 }
 
 // ——— Video types with context for better idea generation
@@ -272,8 +281,66 @@ async function saveHistory(newItem, existing) {
 }
 
 const REMOTE_WORK_START = new Date(2022, 11, 1); // Dec 2022
+const TRENDS_FILE = "trends.json";
 
-function buildPrompt(videoType, recentTitlesAndTags, restriction14) {
+// ——— Load trends.json (optional); return null on missing/parse error
+function loadTrends() {
+  const filePath = path.join(process.cwd(), TRENDS_FILE);
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    const raw = fs.readFileSync(filePath, "utf8");
+    const data = JSON.parse(raw);
+    return data && typeof data === "object" ? data : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// ——— Build trends section for prompt: summarized (top 10 BR/US, max 3 terms for related/suggestions)
+function buildTrendsSection(trends) {
+  if (!trends || typeof trends !== "object") return { text: "", preview: null };
+  const preview = {
+    generated_at_utc: trends.generated_at_utc ?? null,
+    trending_br_count: 0,
+    trending_us_count: 0,
+    related_terms: [],
+    suggestions_terms: []
+  };
+  const lines = [];
+  lines.push("——— CONTEXTO DE TENDÊNCIAS ———");
+  const ts = trends.trending_searches ?? {};
+  const br = (ts.BR ?? []).slice(0, 10);
+  const us = (ts.US ?? []).slice(0, 10);
+  preview.trending_br_count = br.length;
+  preview.trending_us_count = us.length;
+  if (br.length > 0) lines.push("Trending BR (top 10): " + br.join(", "));
+  if (us.length > 0) lines.push("Trending US (top 10): " + us.join(", "));
+  const rq = trends.related_queries ?? {};
+  const rqTerms = Object.keys(rq).slice(0, 3);
+  preview.related_terms = rqTerms;
+  for (const term of rqTerms) {
+    const geo = rq[term] ?? {};
+    const brR = (geo.BR?.rising ?? []).slice(0, 5);
+    const brT = (geo.BR?.top ?? []).slice(0, 5);
+    const usR = (geo.US?.rising ?? []).slice(0, 5);
+    const usT = (geo.US?.top ?? []).slice(0, 5);
+    if (brR.length || brT.length || usR.length || usT.length) {
+      lines.push(`Related "${term}": BR rising: ${brR.join(", ") || "-"} | top: ${brT.join(", ") || "-"}; US rising: ${usR.join(", ") || "-"} | top: ${usT.join(", ") || "-"}`);
+    }
+  }
+  const sug = trends.suggestions ?? {};
+  const sugTerms = Object.keys(sug).slice(0, 3);
+  preview.suggestions_terms = sugTerms;
+  for (const term of sugTerms) {
+    const list = (sug[term] ?? []).slice(0, 5);
+    if (list.length) lines.push(`Suggestions "${term}": ${list.join(", ")}`);
+  }
+  lines.push("Use esses sinais como inspiração, mas mantenha relevância para dev BR buscando remoto exterior.");
+  const text = lines.length > 1 ? lines.join("\n") + "\n" : "";
+  return { text, preview };
+}
+
+function buildPrompt(videoType, recentTitlesAndTags, restriction14, trendsBlockText) {
   const typeContext = VIDEO_TYPES[videoType] ?? videoType;
   const yearsRemote = Math.floor(
     (Date.now() - REMOTE_WORK_START.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
@@ -306,8 +373,11 @@ Gere algo realmente novo e diferente dentro do tipo selecionado.
 `
     : "";
 
+  const trendsBlock = trendsBlockText ? "\n" + trendsBlockText : "";
+
   return `
 You are writing a video brief for a real creator. Use the context below and output ONLY valid JSON.
+${trendsBlock}
 
 ——— CREATOR CONTEXT (fixed, real) ———
 - Brazilian Frontend developer, ${yearsLabel} working 100% remotely for companies in California (since Dec/2022).
@@ -515,7 +585,18 @@ async function main() {
     title: i.chosen_title,
     tags: i.tags
   }));
-  const prompt = buildPrompt(videoType, recent, restriction14);
+  const trends = loadTrends();
+  const trendsSection = trends ? buildTrendsSection(trends) : { text: "", preview: null };
+  lastTrendsPreview = trendsSection.preview ?? null;
+  if (lastTrendsPreview) {
+    logInfo("trends_loaded", {
+      trending_br: lastTrendsPreview.trending_br_count,
+      trending_us: lastTrendsPreview.trending_us_count,
+      related_terms: lastTrendsPreview.related_terms?.length ?? 0,
+      suggestions_terms: lastTrendsPreview.suggestions_terms?.length ?? 0
+    });
+  }
+  const prompt = buildPrompt(videoType, recent, restriction14, trendsSection.text);
 
   const client = new OpenAI({
     apiKey: GROQ_API_KEY,
@@ -581,7 +662,8 @@ async function main() {
     model,
     rawPreview: raw,
     payload,
-    success: true
+    success: true,
+    trendsPreview: lastTrendsPreview
   });
 
   console.log("Email sent successfully!");
@@ -600,7 +682,8 @@ main().catch((err) => {
     rawPreview: null,
     payload: null,
     success: false,
-    errorMessage: msg
+    errorMessage: msg,
+    trendsPreview: lastTrendsPreview
   });
   console.error(err);
   process.exit(1);

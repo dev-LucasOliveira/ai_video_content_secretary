@@ -1,0 +1,10 @@
+# Generated / artifacts (not committed)
+trends.json
+debug/
+
+# Python
+__pycache__/
+*.pyc
+
+# Dependencies
+node_modules/
