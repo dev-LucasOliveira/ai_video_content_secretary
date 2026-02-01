@@ -112,6 +112,11 @@ function writeDebugBundle(opts) {
     summaryLines.push("", `- **Title:** ${payload.chosen_title || "—"}`);
     summaryLines.push(`- **Type:** ${payload.video_type || "—"}`);
   }
+  if (trendsPreview != null) {
+    summaryLines.push("", `- **Trends:** yes (${trendsPreview.keywords_count ?? 0} keywords, preview: ${(trendsPreview.terms_in_preview ?? []).join(", ")})`);
+  } else {
+    summaryLines.push("", "- **Trends:** no (trends.json missing or empty)");
+  }
   if (!success && errorMessage) {
     summaryLines.push("", "### Error", "```", errorMessage, "```");
   }
