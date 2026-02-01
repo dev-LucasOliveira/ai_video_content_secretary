@@ -168,5 +168,41 @@ def _write(data, terms_count, total_items):
     print(f"TRENDS_OK terms={terms_count} total_items={total_items}")
 
 
+def print_summary():
+    """Print a quick summary of trends.json (run after main() or standalone: python trends.py --summary)."""
+    try:
+        with open(TRENDS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        print("trends.json not found. Run: python trends.py")
+        return
+    except json.JSONDecodeError as e:
+        print(f"trends.json invalid: {e}")
+        return
+    gen = data.get("generated_at", "?")
+    data_by_term = data.get("data") or {}
+    print(f"Generated: {gen}")
+    print(f"Keywords: {len(data_by_term)}")
+    for term, entry in list(data_by_term.items())[:5]:
+        br = entry.get("BR") or {}
+        us = entry.get("US") or {}
+        sug = entry.get("suggestions") or []
+        n_br = len(br.get("rising", [])) + len(br.get("top", []))
+        n_us = len(us.get("rising", [])) + len(us.get("top", []))
+        print(f"  {term}: BR={n_br} US={n_us} suggestions={len(sug)}")
+    if len(data_by_term) > 5:
+        print(f"  ... and {len(data_by_term) - 5} more keywords")
+    total = sum(
+        len((e.get("BR") or {}).get("rising", [])) + len((e.get("BR") or {}).get("top", []))
+        + len((e.get("US") or {}).get("rising", [])) + len((e.get("US") or {}).get("top", []))
+        + len(e.get("suggestions", []))
+        for e in data_by_term.values()
+    )
+    print(f"Total items: {total}")
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--summary":
+        print_summary()
+    else:
+        main()
