@@ -1,0 +1,21 @@
+name: "⭐ Save Favorite Idea"
+description: "Save an idea as a weekly favorite"
+title: "Favorite: "
+labels: ["favorite"]
+body:
+  - type: input
+    id: idea_title
+    attributes:
+      label: Idea title
+      description: The title of the idea you want to save.
+      placeholder: "Example: Why English Changed My Career"
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Short summary (optional)
+      description: Add a quick note or reason if you want.
+      placeholder: "Because this idea is super relevant..."
+    validations:
+      required: false

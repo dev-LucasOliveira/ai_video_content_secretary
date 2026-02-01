@@ -1,0 +1,50 @@
+# Quando uma issue com label "favorite" é criada, anexa ao weekly e fecha a issue
+name: Save Favorite
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  save:
+    runs-on: ubuntu-latest
+    steps:
+      - id: check_label
+        run: |
+          LABELS='${{ tojson(github.event.issue.labels) }}'
+          echo "has_favorite=$([ -n "$(echo "$LABELS" | grep -o '"name":"favorite"')" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.check_label.outputs.has_favorite == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.check_label.outputs.has_favorite == 'true'
+        with:
+          node-version: "20"
+
+      - name: Append favorite to weekly
+        if: steps.check_label.outputs.has_favorite == 'true'
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: node scripts/append-favorite.js
+
+      - name: Commit and push
+        if: steps.check_label.outputs.has_favorite == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add favorites/favorites-weekly.md
+          FAV_TITLE="${{ github.event.issue.title }}"
+          git diff --staged --quiet || git commit -m "Add favorite: ${FAV_TITLE}"
+          git push
+
+      - name: Close issue
+        if: steps.check_label.outputs.has_favorite == 'true'
+        run: gh issue close "${{ github.event.issue.number }}" --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ github.token }}

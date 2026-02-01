@@ -1,0 +1,38 @@
+# Todo sábado 9h BRT (12h UTC): envia relatório de favoritos por e-mail e arquiva
+name: Weekly Favorites Report
+
+on:
+  schedule:
+    - cron: "0 12 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run weekly report
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+        run: node scripts/weekly-report.js
+
+      - name: Commit archive and weekly changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add favorites/
+          git diff --staged --quiet || (git commit -m "Weekly favorites: archive and clear weekly" && git push)

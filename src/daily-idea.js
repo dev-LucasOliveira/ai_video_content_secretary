@@ -455,7 +455,7 @@ function extractJson(raw) {
 }
 
 // ——— Email readability-first: index with anchors, blocks, <details> for script/description, TL;DR
-function toEmailHtml(payload) {
+function toEmailHtml(payload, opts = {}) {
   const esc = (s) =>
     String(s ?? "")
       .replaceAll("&", "&amp;")
@@ -539,6 +539,20 @@ function toEmailHtml(payload) {
     `<p style="margin:0;"><b>Tags:</b> ${esc((payload.tags || []).join(", "))}</p><p style="margin:8px 0 0 0;"><b>CTA:</b> ${esc(payload.cta)}</p>`
   );
 
+  const githubRepo = opts.githubRepo || process.env.GITHUB_REPOSITORY || "";
+  const favoriteLink =
+    githubRepo && payload.chosen_title
+      ? `https://github.com/${githubRepo}/issues/new?template=favorite.yml&title=Favorite:+${encodeURIComponent(payload.chosen_title)}&idea_title=${encodeURIComponent(payload.chosen_title)}`
+      : "";
+  const favoriteBlock =
+    favoriteLink
+      ? `
+  <hr style="margin:24px 0 16px 0; border:0; border-top:1px solid #dee2e6;">
+  <p style="margin:0 0 12px 0;">⭐ Gostou dessa ideia?</p>
+  <a href="${esc(favoriteLink)}" style="display:inline-block; padding:12px 18px; background:#f5c518; color:#000; text-decoration:none; border-radius:8px; font-weight:600; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">⭐ Salvar nos Favoritos</a>
+  `
+      : "";
+
   return `
   <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; max-width: 640px; margin: 0 auto;">
     ${headline}
@@ -550,6 +564,7 @@ function toEmailHtml(payload) {
     ${scriptBlock}
     ${descBlock}
     ${tagsBlock}
+    ${favoriteBlock}
   </div>
   `.trim();
 }
@@ -639,7 +654,7 @@ async function main() {
     from: EMAIL_FROM,
     to: EMAIL_TO,
     subject,
-    html: toEmailHtml(payload)
+    html: toEmailHtml(payload, { githubRepo: process.env.GITHUB_REPOSITORY })
   });
   const resendMs = Date.now() - tResend0;
 
