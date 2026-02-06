@@ -55,7 +55,7 @@ function writeDebugBundle(opts) {
     payload,
     success,
     errorMessage,
-    trendsPreview
+    trendsPreview,
   } = opts;
 
   const lastRun = {
@@ -72,8 +72,8 @@ function writeDebugBundle(opts) {
       "EMAIL_TO",
       "EMAIL_FROM",
       "GITHUB_TOKEN",
-      "GITHUB_REPOSITORY"
-    ].filter((k) => !!process.env[k])
+      "GITHUB_REPOSITORY",
+    ].filter((k) => !!process.env[k]),
   };
   fs.writeFileSync(
     path.join(dir, "last-run.json"),
@@ -89,9 +89,13 @@ function writeDebugBundle(opts) {
 
   if (success && payload) {
     const safePayload = { ...payload };
-    if (safePayload.full_script && safePayload.full_script.length > FULL_SCRIPT_TRUNCATE) {
+    if (
+      safePayload.full_script &&
+      safePayload.full_script.length > FULL_SCRIPT_TRUNCATE
+    ) {
       safePayload.full_script =
-        safePayload.full_script.slice(0, FULL_SCRIPT_TRUNCATE) + "\n\n[... truncated]";
+        safePayload.full_script.slice(0, FULL_SCRIPT_TRUNCATE) +
+        "\n\n[... truncated]";
     }
     fs.writeFileSync(
       path.join(dir, "last-payload.json"),
@@ -100,20 +104,25 @@ function writeDebugBundle(opts) {
   }
 
   const summaryLines = [
-    success ? "## ✅ Daily Content Idea — Success" : "## ❌ Daily Content Idea — Failure",
+    success
+      ? "## ✅ Daily Content Idea — Success"
+      : "## ❌ Daily Content Idea — Failure",
     "",
     `- **Run ID:** \`${runId}\``,
     `- **Total:** ${totalMs} ms`,
     `- **LLM:** ${llmMs} ms`,
     `- **Resend:** ${resendMs} ms`,
-    `- **Model:** ${model || "—"}`
+    `- **Model:** ${model || "—"}`,
   ];
   if (success && payload) {
     summaryLines.push("", `- **Title:** ${payload.chosen_title || "—"}`);
     summaryLines.push(`- **Type:** ${payload.video_type || "—"}`);
   }
   if (trendsPreview != null) {
-    summaryLines.push("", `- **Trends:** yes (${trendsPreview.keywords_count ?? 0} keywords, preview: ${(trendsPreview.terms_in_preview ?? []).join(", ")})`);
+    summaryLines.push(
+      "",
+      `- **Trends:** yes (${trendsPreview.keywords_count ?? 0} keywords, preview: ${(trendsPreview.terms_in_preview ?? []).join(", ")})`
+    );
     fs.writeFileSync(
       path.join(dir, "trends-preview.json"),
       JSON.stringify(trendsPreview, null, 2)
@@ -129,16 +138,22 @@ function writeDebugBundle(opts) {
 
 // ——— Video types with context for better idea generation
 const VIDEO_TYPES = {
-  career_international:
-    "Conteúdos sobre trabalhar no exterior, rotina com empresa americana, soft skills de alto impacto, mentalidade, crescimento e adaptação.",
+  general_frontend:
+    "Conteúdos sobre frontend em sentido amplo: ferramentas, workflows, ecossistema, boas práticas, UI/UX para devs.",
   tech_frontend:
-    "Conteúdos técnicos práticos sobre frontend moderno, ferramentas, frameworks, boas práticas, performance, UI/UX para dev FE.",
+    "Conteúdos técnicos profundos: implementação, performance, padrões, arquitetura, código.",
+  general_career:
+    "Carreira internacional, crescimento, entrevistas, compensação, visto, soft skills, adaptação.",
+  remote_work:
+    "Trabalho assíncrono, fuso, cultura remota, times distribuídos, ferramentas de comunicação.",
   life_productivity:
-    "Conteúdos sobre vida de dev remoto, produtividade, hábitos, rotina e equilíbrio.",
-  communication_english:
-    "Conteúdos sobre inglês aplicado à carreira dev internacional, comunicação no dia a dia, práticas reais, dicas objetivas.",
-  strategy_content:
-    "Conteúdos meta sobre criação de conteúdo, carreira como criador dev, estratégia, thumbnail/title thinking, storytelling."
+    "Hábitos, rotina, produtividade, equilíbrio, gestão de tempo.",
+  learning_growth:
+    "Como você estuda, cursos, side projects, evolução, como se manter atualizado.",
+  mistakes_learnings:
+    "Post-mortems, falhas, o que faria diferente, aprendizados honestos.",
+  tech_opinion:
+    "Reações a notícias de tech, releases, tendências, opinião sobre a indústria.",
 };
 
 function getValidVideoTypes() {
@@ -146,7 +161,7 @@ function getValidVideoTypes() {
 }
 
 // ——— Anti-repetition: exclude types used in last 14 days; fallback if all types excluded
-const FALLBACK_VIDEO_TYPE = "career_international";
+const FALLBACK_VIDEO_TYPE = "general_career";
 
 function getRestriction14(items) {
   const cutoff = Date.now() - MS_14_DAYS;
@@ -155,9 +170,13 @@ function getRestriction14(items) {
     const t = new Date(i.ts).getTime();
     return Number.isFinite(t) && t >= cutoff;
   });
-  const titles = [...new Set(inWindow.map((i) => i.chosen_title).filter(Boolean))];
+  const titles = [
+    ...new Set(inWindow.map((i) => i.chosen_title).filter(Boolean)),
+  ];
   const types = [...new Set(inWindow.map((i) => i.video_type).filter(Boolean))];
-  const tags = [...new Set(inWindow.flatMap((i) => i.tags || []).filter(Boolean))];
+  const tags = [
+    ...new Set(inWindow.flatMap((i) => i.tags || []).filter(Boolean)),
+  ];
   return { titles, types, tags };
 }
 
@@ -176,7 +195,9 @@ async function loadHistory() {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPOSITORY;
   if (!token || !repo) {
-    logInfo("history_skip", { reason: "GITHUB_TOKEN or GITHUB_REPOSITORY missing" });
+    logInfo("history_skip", {
+      reason: "GITHUB_TOKEN or GITHUB_REPOSITORY missing",
+    });
     return { items: [] };
   }
   const [owner, repoName] = repo.split("/");
@@ -189,11 +210,11 @@ async function loadHistory() {
   const headers = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
-    "X-GitHub-Api-Version": "2022-11-28"
+    "X-GitHub-Api-Version": "2022-11-28",
   };
 
   const listRes = await fetch(`${baseUrl}/issues?state=all&per_page=100`, {
-    headers
+    headers,
   });
   if (!listRes.ok) {
     logWarn("history_load_failed", { status: listRes.status });
@@ -209,7 +230,7 @@ async function loadHistory() {
     const createRes = await fetch(`${baseUrl}/issues`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ title: HISTORY_ISSUE_TITLE, body })
+      body: JSON.stringify({ title: HISTORY_ISSUE_TITLE, body }),
     });
     if (!createRes.ok) {
       logWarn("history_create_failed", { status: createRes.status });
@@ -249,9 +270,9 @@ async function saveHistory(newItem, existing) {
       chosen_title: newItem.chosen_title,
       tags: newItem.tags || [],
       hook: newItem.hook_0_10s,
-      why_today: newItem.why_today
+      why_today: newItem.why_today,
     },
-    ...(existing.items || [])
+    ...(existing.items || []),
   ].slice(0, MAX_HISTORY_ITEMS);
 
   const body = JSON.stringify({ version: 1, items });
@@ -264,9 +285,9 @@ async function saveHistory(newItem, existing) {
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${token}`,
         "X-GitHub-Api-Version": "2022-11-28",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ title: HISTORY_ISSUE_TITLE, body })
+      body: JSON.stringify({ title: HISTORY_ISSUE_TITLE, body }),
     });
     return;
   }
@@ -276,9 +297,9 @@ async function saveHistory(newItem, existing) {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
       "X-GitHub-Api-Version": "2022-11-28",
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ body })
+    body: JSON.stringify({ body }),
   });
 }
 
@@ -306,7 +327,7 @@ function buildTrendsSection(trends) {
   const preview = {
     generated_at: trends.generated_at ?? null,
     keywords_count: keywords.length,
-    terms_in_preview: []
+    terms_in_preview: [],
   };
   const lines = [];
   lines.push("——— TENDÊNCIAS REAIS DEV ———");
@@ -319,30 +340,61 @@ function buildTrendsSection(trends) {
     const br = entry.BR ?? {};
     const us = entry.US ?? {};
     const parts = [];
-    if ((br.rising ?? []).length) parts.push(`BR rising: ${(br.rising ?? []).slice(0, maxItems).join(", ")}`);
-    if ((br.top ?? []).length) parts.push(`BR top: ${(br.top ?? []).slice(0, maxItems).join(", ")}`);
-    if ((us.rising ?? []).length) parts.push(`US rising: ${(us.rising ?? []).slice(0, maxItems).join(", ")}`);
-    if ((us.top ?? []).length) parts.push(`US top: ${(us.top ?? []).slice(0, maxItems).join(", ")}`);
-    if ((br.topics_rising ?? []).length) parts.push(`BR topics↑: ${(br.topics_rising ?? []).slice(0, maxItems).join(", ")}`);
-    if ((br.topics_top ?? []).length) parts.push(`BR topics: ${(br.topics_top ?? []).slice(0, maxItems).join(", ")}`);
-    if ((us.topics_rising ?? []).length) parts.push(`US topics↑: ${(us.topics_rising ?? []).slice(0, maxItems).join(", ")}`);
-    if ((us.topics_top ?? []).length) parts.push(`US topics: ${(us.topics_top ?? []).slice(0, maxItems).join(", ")}`);
+    if ((br.rising ?? []).length)
+      parts.push(
+        `BR rising: ${(br.rising ?? []).slice(0, maxItems).join(", ")}`
+      );
+    if ((br.top ?? []).length)
+      parts.push(`BR top: ${(br.top ?? []).slice(0, maxItems).join(", ")}`);
+    if ((us.rising ?? []).length)
+      parts.push(
+        `US rising: ${(us.rising ?? []).slice(0, maxItems).join(", ")}`
+      );
+    if ((us.top ?? []).length)
+      parts.push(`US top: ${(us.top ?? []).slice(0, maxItems).join(", ")}`);
+    if ((br.topics_rising ?? []).length)
+      parts.push(
+        `BR topics↑: ${(br.topics_rising ?? []).slice(0, maxItems).join(", ")}`
+      );
+    if ((br.topics_top ?? []).length)
+      parts.push(
+        `BR topics: ${(br.topics_top ?? []).slice(0, maxItems).join(", ")}`
+      );
+    if ((us.topics_rising ?? []).length)
+      parts.push(
+        `US topics↑: ${(us.topics_rising ?? []).slice(0, maxItems).join(", ")}`
+      );
+    if ((us.topics_top ?? []).length)
+      parts.push(
+        `US topics: ${(us.topics_top ?? []).slice(0, maxItems).join(", ")}`
+      );
     if (parts.length) lines.push(`"${term}": ${parts.join(" | ")}`);
     const sug = (entry.suggestions ?? []).slice(0, maxItems);
     if (sug.length) lines.push(`  suggestions: ${sug.join(", ")}`);
   }
-  lines.push("Use esse contexto de tendências reais do nicho DEV (frontend, carreira internacional, inglês, produtividade, mercado exterior) para inspirar o tema atual. Mantenha relevância para dev BR buscando remoto/exterior.");
+  lines.push(
+    "Use esse contexto de tendências reais do nicho DEV (frontend, carreira internacional, inglês, produtividade, mercado exterior) para inspirar o tema atual. Mantenha relevância para dev BR buscando remoto/exterior."
+  );
   const text = lines.length > 1 ? lines.join("\n") + "\n" : "";
   return { text, preview };
 }
 
-function buildPrompt(videoType, recentTitlesAndTags, restriction14, trendsBlockText) {
+function buildPrompt(
+  videoType,
+  recentTitlesAndTags,
+  restriction14,
+  trendsBlockText
+) {
   const typeContext = VIDEO_TYPES[videoType] ?? videoType;
   const yearsRemote = Math.floor(
     (Date.now() - REMOTE_WORK_START.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
   );
   const yearsLabel =
-    yearsRemote <= 0 ? "1 year" : yearsRemote === 1 ? "1 year" : `${yearsRemote} years`;
+    yearsRemote <= 0
+      ? "1 year"
+      : yearsRemote === 1
+        ? "1 year"
+        : `${yearsRemote} years`;
   const recentBlock =
     recentTitlesAndTags.length > 0
       ? `
@@ -381,12 +433,16 @@ ${trendsBlock}
 - Channel focus: international dev career, frontend, remote life, English for devs, productivity, real stories and pain points.
 - Goals: useful, actionable ideas; honest content; topics that Brazilian devs trying to work abroad actually face.
 - Every idea must be something the creator could record tomorrow—real, not fictional or hypothetical.
+- Topics like "English for devs" can appear within general_career or remote_work when it makes sense; they are not a separate category.
 
 ——— VIDEO TYPE FOR THIS BRIEF ———
 Type key (use exactly in JSON): "${videoType}"
 Context: ${typeContext}
 ${recentBlock}
 ${restrictionBlock}
+
+——— ANGLE DIVERSITY ———
+Choose a distinct angle within this type (e.g. how-to, mistakes/learnings, day-in-life, tool deep-dive, comparison, story/case). Avoid repeating the same angle as in the recent titles above—if recent ideas were "day in the life" or "how I got my job", pick a different angle (e.g. "common mistakes", "tool comparison", "real story"). Vary the format and focus.
 
 ——— INSTRUCTIONS ———
 1. THEME: Strong, original, relevant. Root it in real problems (e.g. interviews, timezone, English, salary, visa, impostor syndrome, async work). Avoid generic or superficial angles.
@@ -546,14 +602,13 @@ function toEmailHtml(payload, opts = {}) {
     githubRepo && payload.chosen_title
       ? `https://github.com/${githubRepo}/issues/new?template=favorite.yml&title=Favorite:+${encodeURIComponent(payload.chosen_title)}&idea_title=${encodeURIComponent(payload.chosen_title)}`
       : "";
-  const favoriteBlock =
-    favoriteLink
-      ? `
+  const favoriteBlock = favoriteLink
+    ? `
   <hr style="margin:24px 0 16px 0; border:0; border-top:1px solid #dee2e6;">
   <p style="margin:0 0 12px 0;">⭐ Gostou dessa ideia?</p>
   <a href="${esc(favoriteLink)}" style="display:inline-block; padding:12px 18px; background:#f5c518; color:#000; text-decoration:none; border-radius:8px; font-weight:600; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">⭐ Salvar nos Favoritos</a>
   `
-      : "";
+    : "";
 
   return `
   <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; max-width: 640px; margin: 0 auto;">
@@ -584,9 +639,12 @@ async function main() {
 
   logInfo("start", {
     model,
-    envVars: ["GROQ_API_KEY", "RESEND_API_KEY", "EMAIL_TO", "EMAIL_FROM"].filter(
-      (k) => !!process.env[k]
-    )
+    envVars: [
+      "GROQ_API_KEY",
+      "RESEND_API_KEY",
+      "EMAIL_TO",
+      "EMAIL_FROM",
+    ].filter((k) => !!process.env[k]),
   });
 
   const history = await loadHistory();
@@ -594,23 +652,30 @@ async function main() {
   const videoType = chooseVideoType(restriction14.types);
   const recent = (history.items || []).slice(0, RECENT_FOR_PROMPT).map((i) => ({
     title: i.chosen_title,
-    tags: i.tags
+    tags: i.tags,
   }));
   const trends = loadTrends();
-  const trendsSection = trends ? buildTrendsSection(trends) : { text: "", preview: null };
+  const trendsSection = trends
+    ? buildTrendsSection(trends)
+    : { text: "", preview: null };
   lastTrendsPreview = trendsSection.preview ?? null;
   if (lastTrendsPreview) {
     logInfo("trends_loaded", {
       keywords_count: lastTrendsPreview.keywords_count ?? 0,
       terms_in_preview: lastTrendsPreview.terms_in_preview ?? [],
-      terms_in_preview_count: lastTrendsPreview.terms_in_preview?.length ?? 0
+      terms_in_preview_count: lastTrendsPreview.terms_in_preview?.length ?? 0,
     });
   }
-  const prompt = buildPrompt(videoType, recent, restriction14, trendsSection.text);
+  const prompt = buildPrompt(
+    videoType,
+    recent,
+    restriction14,
+    trendsSection.text
+  );
 
   const client = new OpenAI({
     apiKey: GROQ_API_KEY,
-    baseURL: "https://api.groq.com/openai/v1"
+    baseURL: "https://api.groq.com/openai/v1",
   });
 
   let raw;
@@ -620,14 +685,14 @@ async function main() {
     const t0 = Date.now();
     const messages = [
       { role: "system", content: "Respond only with valid JSON." },
-      { role: "user", content: prompt }
+      { role: "user", content: prompt },
     ];
     if (extraUserMessage)
       messages.push({ role: "user", content: extraUserMessage });
     const completion = await client.chat.completions.create({
       model,
       temperature,
-      messages
+      messages,
     });
     llmMs += Date.now() - t0;
     return completion.choices?.[0]?.message?.content?.trim() ?? "";
@@ -656,7 +721,7 @@ async function main() {
     from: EMAIL_FROM,
     to: EMAIL_TO,
     subject,
-    html: toEmailHtml(payload, { githubRepo: process.env.GITHUB_REPOSITORY })
+    html: toEmailHtml(payload, { githubRepo: process.env.GITHUB_REPOSITORY }),
   });
   const resendMs = Date.now() - tResend0;
 
@@ -673,7 +738,7 @@ async function main() {
     rawPreview: raw,
     payload,
     success: true,
-    trendsPreview: lastTrendsPreview
+    trendsPreview: lastTrendsPreview,
   });
 
   console.log("Email sent successfully!");
@@ -693,7 +758,7 @@ main().catch((err) => {
     payload: null,
     success: false,
     errorMessage: msg,
-    trendsPreview: lastTrendsPreview
+    trendsPreview: lastTrendsPreview,
   });
   console.error(err);
   process.exit(1);

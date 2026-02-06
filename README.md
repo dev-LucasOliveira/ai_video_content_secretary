@@ -7,7 +7,7 @@ A system that runs daily via **GitHub Actions**, uses the **Groq API** (OpenAI-c
 ## What it does
 
 1. **Mon–Fri + Sun at 9h, 9h05, 9h10, 9h15, 9h20 São Paulo (UTC-3)** — or on manual trigger — the workflow runs.
-2. **Groq (LLM)** generates one full video package: type (`career_international` / `tech_frontend` / `life_productivity` / `communication_english` / `strategy_content`), title options, chosen title, thumbnail concepts, hook, outline, full script, description, tags, CTA, and “why today.”
+2. **Groq (LLM)** generates one full video package: type (`general_frontend` / `tech_frontend` / `general_career` / `remote_work` / `life_productivity` / `learning_growth` / `mistakes_learnings` / `tech_opinion`), title options, chosen title, thumbnail concepts, hook, outline, full script, description, tags, CTA, and “why today.”
 3. **History** is stored in a single GitHub Issue (last 50 items). The prompt receives the last 10 titles/tags so the model avoids repeating similar themes.
 4. **Resend** sends a formatted, readability-first HTML email with the idea.
 5. **Debug artifacts** (run metadata, response preview, summary) are uploaded to the Actions run and shown in the Step Summary.
@@ -147,7 +147,7 @@ If `GITHUB_TOKEN` or `GITHUB_REPOSITORY` is missing, the script still runs but s
   "items": [
     {
       "ts": "2025-01-31T12:00:00.000Z",
-      "video_type": "career_international",
+      "video_type": "general_career",
       "chosen_title": "...",
       "tags": ["carreira", "..."],
       "hook": "...",
@@ -175,8 +175,8 @@ If `GITHUB_TOKEN` or `GITHUB_REPOSITORY` is missing, the script still runs but s
 ## Video types
 
 - **Selection:** Random, with 14-day anti-repetition: types (and related titles/tags) from the last 14 days are excluded; one type is chosen uniformly from the remaining.
-- **Fallback:** If all types are excluded or none available, `career_international` is used.
-- **Valid types:** `career_international`, `tech_frontend`, `life_productivity`, `communication_english`, `strategy_content`.
+- **Fallback:** If all types are excluded or none available, `general_career` is used.
+- **Valid types:** `general_frontend`, `tech_frontend`, `general_career`, `remote_work`, `life_productivity`, `learning_growth`, `mistakes_learnings`, `tech_opinion`.
 
 ---
 
