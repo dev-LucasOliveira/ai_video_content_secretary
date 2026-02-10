@@ -1,31 +1,31 @@
-# Daily Content Idea
+# Ideia de Conteúdo Diária
 
-A system that runs daily via **GitHub Actions**, uses the **Groq API** (OpenAI-compatible) to generate a complete video idea in JSON, and emails it to you via **Resend**. Built for YouTube content strategy around dev career (BR → abroad) and frontend.
-
----
-
-## What it does
-
-1. **Mon–Fri + Sun at 9h, 9h05, 9h10, 9h15, 9h20 São Paulo (UTC-3)** — or on manual trigger — the workflow runs.
-2. **Groq (LLM)** generates one full video package: type (`general_frontend` / `tech_frontend` / `general_career` / `remote_work` / `life_productivity` / `learning_growth` / `mistakes_learnings` / `tech_opinion`), title options, chosen title, thumbnail concepts, hook, outline, full script, description, tags, CTA, and “why today.”
-3. **History** is stored in a single GitHub Issue (last 50 items). The prompt receives the last 10 titles/tags so the model avoids repeating similar themes.
-4. **Resend** sends a formatted, readability-first HTML email with the idea.
-5. **Debug artifacts** (run metadata, response preview, summary) are uploaded to the Actions run and shown in the Step Summary.
+Sistema que roda diariamente via **GitHub Actions**, usa a **API Groq** (compatível com OpenAI) para gerar uma ideia de vídeo completa em JSON e envia por e-mail via **Resend**. Feito para estratégia de conteúdo no YouTube em carreira dev (BR → exterior) e frontend.
 
 ---
 
-## Features
+## O que faz
 
-| Feature | Description |
-|--------|-------------|
-| **Cron** | Mon–Fri + Sun 9h / 9h05 / 9h10 / 9h15 / 9h20 BRT = `0,5,10,15,20 12 * * 0,1-5` UTC |
-| **History** | GitHub Issue `daily-content-idea-history` as JSON storage (max 50 items, no DB) |
-| **Anti-repetition** | 14-day window: types/titles/tags from last 14 days excluded; prompt gets "don't repeat" block |
-| **Trends** | PyTrends → `trends.json`; prompt gets a short "real trends" block (BR/US dev keywords) |
-| **Favorites** | Link in daily email → GitHub Issue (template); workflow appends to weekly, closes issue; Saturday report emails and archives |
-| **Observability** | Structured JSON logs, run ID, timings (total, LLM, Resend), debug bundle, Step Summary with Trends yes/no |
-| **Email** | Index with anchors, TL;DR, collapsible script/description, inline styles (Gmail-safe), "Save to Favorites" link |
-| **Robust JSON** | `extractJson` (direct parse + first `{` / last `}`) + one LLM retry at lower temperature |
+1. **Seg–Sex + Dom às 9h, 9h05, 9h10, 9h15, 9h20 (São Paulo, UTC-3)** — ou por disparo manual — o workflow é executado.
+2. **Groq (LLM)** gera um pacote completo de vídeo: tipo (`general_frontend` / `tech_frontend` / `general_career` / `remote_work` / `life_productivity` / `learning_growth` / `mistakes_learnings` / `tech_opinion`), opções de título, título escolhido, conceitos de thumbnail, hook, outline, roteiro completo, descrição, tags, CTA e “por que hoje.”
+3. **Histórico** fica em uma única GitHub Issue (últimos 50 itens). O prompt recebe os últimos 10 títulos/tags para o modelo evitar repetir temas parecidos.
+4. **Resend** envia um e-mail HTML formatado e legível com a ideia.
+5. **Artefatos de debug** (metadados da execução, prévia da resposta, resumo) são enviados para a run do Actions e exibidos no Step Summary.
+
+---
+
+## Funcionalidades
+
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| **Cron** | Seg–Sex + Dom 9h / 9h05 / 9h10 / 9h15 / 9h20 BRT = `0,5,10,15,20 12 * * 0,1-5` UTC |
+| **Histórico** | GitHub Issue `daily-content-idea-history` como armazenamento JSON (máx. 50 itens, sem banco) |
+| **Anti-repetição** | Janela de 14 dias: tipos/títulos/tags dos últimos 14 dias excluídos; prompt recebe bloco "não repetir" |
+| **Trends** | PyTrends → `trends.json`; prompt recebe bloco curto de "tendências reais" (palavras DEV BR/US) |
+| **Favoritos** | Link no e-mail diário → GitHub Issue (template); workflow adiciona ao weekly, fecha a issue; relatório no sábado envia e-mail e arquiva |
+| **Observabilidade** | Logs JSON estruturados, run ID, tempos (total, LLM, Resend), bundle de debug, Step Summary com Trends sim/não |
+| **E-mail** | Índice com âncoras, TL;DR, script/descrição recolhível, estilos inline (Gmail-safe), link "Salvar nos Favoritos" |
+| **JSON robusto** | `extractJson` (parse direto + primeiro `{` / último `}`) + uma nova tentativa na LLM com temperatura menor |
 
 ---
 
@@ -45,11 +45,11 @@ flowchart TB
   DAILY --> DAILYJS["daily-idea.js"]
 
   TJSON --> DAILYJS
-  DAILYJS --> GH_READ["GitHub API\n(issue history)"]
+  DAILYJS --> GH_READ["GitHub API\n(histórico da issue)"]
   GH_READ --> DAILYJS
   DAILYJS --> GROQ["Groq API\n(LLM)"]
   GROQ --> DAILYJS
-  DAILYJS --> GH_WRITE["GitHub API\n(save history)"]
+  DAILYJS --> GH_WRITE["GitHub API\n(salvar histórico)"]
   DAILYJS --> RESEND_DAY["Resend\n(e-mail diário)"]
 
   subgraph mensageria["📧 Mensageria (Resend)"]
@@ -72,7 +72,7 @@ flowchart TB
   CRON_SAT --> WEEKLY_WF["weekly_report.yml"]
   WEEKLY_WF --> WEEKLY_JS["weekly-report.js"]
   WEEKLY_JS --> RESEND_WEEK
-  RESEND_WEEK --> EMAIL_WEEK["E-mail Weekly Favorites"]
+  RESEND_WEEK --> EMAIL_WEEK["E-mail Favoritos da Semana"]
   WEEKLY_JS --> ARCHIVE["favorites-archive.md"]
   WEEKLY_JS --> CLEAR["Limpar favorites-weekly.md"]
   WEEKLY_WF --> COMMIT_WEEK["Commit archive + weekly"]
@@ -103,7 +103,7 @@ flowchart TB
 ### 4. Botão no e-mail → criar issue
 
 - **Link no e-mail:** Aponta para `https://github.com/{owner}/{repo}/issues/new?template=favorite.yml&title=Favorite:+{chosen_title}&idea_title=...`
-- **Template:** `.github/ISSUE_TEMPLATE/favorite.yml` — formulário “Save Favorite Idea” com campo *Idea title* e *Short summary*, label `favorite`.
+- **Template:** `.github/ISSUE_TEMPLATE/favorite.yml` — formulário “Salvar ideia nos favoritos” com campo *Título da ideia* e *Resumo curto*, label `favorite`.
 - **Efeito:** Ao clicar, o usuário abre o formulário de nova issue já com título “Favorite: …” e título da ideia preenchido; ao submeter, uma **issue** é criada (label `favorite` ou título começando com “Favorite:”).
 
 ### 5. Workflow “Save Favorite” (issue opened)
@@ -129,34 +129,34 @@ flowchart TB
 
 ---
 
-## Requirements
+## Requisitos
 
 - **Node.js 20+**
-- **Env vars** (see below)
-- **Groq API key** — [console.groq.com](https://console.groq.com)
-- **Resend API key** — [resend.com](https://resend.com) (e.g. `onboarding@resend.dev` for testing)
+- **Variáveis de ambiente** (ver abaixo)
+- **Chave API Groq** — [console.groq.com](https://console.groq.com)
+- **Chave API Resend** — [resend.com](https://resend.com) (ex.: `onboarding@resend.dev` para testes)
 
 ---
 
-## Setup
+## Configuração
 
-### 1. GitHub Actions secrets
+### 1. Secrets do GitHub Actions
 
-In the repo: **Settings → Secrets and variables → Actions**, add:
+No repositório: **Settings → Secrets and variables → Actions**, adicione:
 
-| Secret | Required | Description |
-|--------|----------|-------------|
-| `GROQ_API_KEY` | Yes | Groq API key |
-| `RESEND_API_KEY` | Yes | Resend API key |
-| `EMAIL_TO` | Yes | Email that receives the idea |
-| `EMAIL_FROM` | Yes | Sender (must be a verified domain in Resend, or e.g. `onboarding@resend.dev`) |
-| `GROQ_MODEL` | No | Default: `llama-3.3-70b-versatile` |
+| Secret | Obrigatório | Descrição |
+|--------|-------------|-----------|
+| `GROQ_API_KEY` | Sim | Chave API Groq |
+| `RESEND_API_KEY` | Sim | Chave API Resend |
+| `EMAIL_TO` | Sim | E-mail que recebe a ideia |
+| `EMAIL_FROM` | Sim | Remetente (domínio verificado no Resend ou ex.: `onboarding@resend.dev`) |
+| `GROQ_MODEL` | Não | Padrão: `llama-3.3-70b-versatile` |
 
-`GITHUB_TOKEN` and `GITHUB_REPOSITORY` are set automatically by the workflow (no need to create them).
+`GITHUB_TOKEN` e `GITHUB_REPOSITORY` são definidos automaticamente pelo workflow (não é preciso criá-los).
 
-### 2. Local development
+### 2. Desenvolvimento local
 
-Clone and install:
+Clone e instale:
 
 ```bash
 git clone <repo-url>
@@ -164,19 +164,19 @@ cd ai_video_content_secretary
 npm install
 ```
 
-Set env vars (optional: add `GITHUB_TOKEN` + `GITHUB_REPOSITORY` to enable history):
+Configure as variáveis de ambiente (opcional: adicione `GITHUB_TOKEN` e `GITHUB_REPOSITORY` para habilitar o histórico):
 
 ```bash
-export GROQ_API_KEY="your-groq-key"
-export RESEND_API_KEY="your-resend-key"
-export EMAIL_TO="you@example.com"
-export EMAIL_FROM="Ideas <onboarding@resend.dev>"
-# Optional: for history (issue read/write)
+export GROQ_API_KEY="sua-chave-groq"
+export RESEND_API_KEY="sua-chave-resend"
+export EMAIL_TO="voce@exemplo.com"
+export EMAIL_FROM="Ideias <onboarding@resend.dev>"
+# Opcional: para histórico (leitura/escrita da issue)
 export GITHUB_TOKEN="ghp_..."
 export GITHUB_REPOSITORY="owner/repo"
 ```
 
-Run once:
+Execute uma vez:
 
 ```bash
 npm run daily
@@ -184,27 +184,27 @@ npm run daily
 
 ---
 
-## Project structure
+## Estrutura do projeto
 
 ```
 .
 ├── .github/
 │   ├── ISSUE_TEMPLATE/
-│   │   └── favorite.yml   # "Save Favorite Idea" form (idea_title, summary)
+│   │   └── favorite.yml   # Formulário "Salvar nos favoritos" (idea_title, summary)
 │   └── workflows/
-│       ├── daily.yml      # Mon–Fri + Sun 12:00/12:05/12:10/12:15/12:20 UTC; PyTrends; npm run daily; debug artifacts
-│       ├── save_favorite.yml   # On issue opened (label/title "Favorite: ...") → append weekly, close issue
-│       └── weekly_report.yml  # Saturday 12:00 UTC; email weekly favorites, archive, clear weekly
+│       ├── daily.yml      # Seg–Sex+Dom 12:00/12:05/12:10/12:15/12:20 UTC; PyTrends; npm run daily; artefatos de debug
+│       ├── save_favorite.yml   # Ao abrir issue (label/título "Favorite: ...") → append no weekly, fecha issue
+│       └── weekly_report.yml  # Sábado 12:00 UTC; e-mail dos favoritos da semana, arquiva, limpa weekly
 ├── favorites/
-│   ├── favorites-weekly.md   # Current week favorites (appended by save_favorite)
-│   └── favorites-archive.md # Past weeks (appended by weekly_report)
+│   ├── favorites-weekly.md   # Favoritos da semana atual (adicionados pelo save_favorite)
+│   └── favorites-archive.md # Semanas anteriores (adicionados pelo weekly_report)
 ├── scripts/
-│   ├── append-favorite.js   # Parses issue body, appends to favorites-weekly.md
-│   └── weekly-report.js      # Sends Resend email, appends to archive, clears weekly
+│   ├── append-favorite.js   # Interpreta body da issue, adiciona em favorites-weekly.md
+│   └── weekly-report.js     # Envia e-mail Resend, anexa no archive, limpa weekly
 ├── src/
-│   └── daily-idea.js      # Main: Groq, history, trends, Resend, debug bundle, extractJson
-├── trends.py              # Fetches Google Trends (BR/US) for dev keywords → trends.json
-├── debug/                 # Generated at runtime (.gitignore)
+│   └── daily-idea.js      # Principal: Groq, histórico, trends, Resend, bundle de debug, extractJson
+├── trends.py              # Busca Google Trends (BR/US) para palavras DEV → trends.json
+├── debug/                 # Gerado em runtime (.gitignore)
 │   ├── last-run.json
 │   ├── last-response-preview.txt
 │   ├── last-payload.json
@@ -216,30 +216,30 @@ npm run daily
 
 ---
 
-## Running
+## Execução
 
-### On schedule
+### No agendamento
 
-The workflow runs **Mon–Fri + Sun at 12:00, 12:05, 12:10, 12:15, 12:20 UTC** (9h, 9h05, 9h10, 9h15, 9h20 São Paulo).
+O workflow roda **Seg–Sex + Dom às 12:00, 12:05, 12:10, 12:15, 12:20 UTC** (9h, 9h05, 9h10, 9h15, 9h20 São Paulo).
 
-### Manual run
+### Disparo manual
 
 1. **Actions** → **Daily Content Idea** → **Run workflow** → **Run workflow**.
 
-### Locally
+### Local
 
 ```bash
 npm run daily
 ```
 
-If `GITHUB_TOKEN` or `GITHUB_REPOSITORY` is missing, the script still runs but skips loading/saving history (logs `history_skip`).
+Se `GITHUB_TOKEN` ou `GITHUB_REPOSITORY` estiverem ausentes, o script ainda roda, mas não carrega nem salva o histórico (registra `history_skip`).
 
 ---
 
-## History (GitHub Issue)
+## Histórico (GitHub Issue)
 
-- **Issue title:** `daily-content-idea-history`
-- **Body:** JSON only, e.g.:
+- **Título da issue:** `daily-content-idea-history`
+- **Body:** apenas JSON, ex.:
 
 ```json
 {
@@ -257,29 +257,29 @@ If `GITHUB_TOKEN` or `GITHUB_REPOSITORY` is missing, the script still runs but s
 }
 ```
 
-- New idea is **prepended**; list is **sliced to 50**.
-- If the issue doesn’t exist, it is created. If the body is invalid JSON, it is re-initialized with `{ "version": 1, "items": [] }`.
+- A nova ideia é **inserida no início**; a lista é **limitada a 50** itens.
+- Se a issue não existir, é criada. Se o body for JSON inválido, é reinicializado com `{ "version": 1, "items": [] }`.
 
 ---
 
-## Debug and observability
+## Debug e observabilidade
 
-- **Structured logs:** One JSON line per event (`logInfo` / `logWarn` / `logError`). No secrets; only env var names (present/absent).
-- **Run ID:** Unique per run (timestamp + random) for correlating logs and artifacts.
-- **Timings:** `totalMs`, `llmMs`, `resendMs` in `debug/last-run.json`.
-- **Artifacts:** The workflow uploads the `debug/` folder as **debug-artifacts** (on success or failure).
-- **Step Summary:** Content of `debug/summary.md` is appended to the job’s Step Summary in the Actions UI.
-
----
-
-## Video types
-
-- **Selection:** Random, with 14-day anti-repetition: types (and related titles/tags) from the last 14 days are excluded; one type is chosen uniformly from the remaining.
-- **Fallback:** If all types are excluded or none available, `general_career` is used.
-- **Valid types:** `general_frontend`, `tech_frontend`, `general_career`, `remote_work`, `life_productivity`, `learning_growth`, `mistakes_learnings`, `tech_opinion`.
+- **Logs estruturados:** uma linha JSON por evento (`logInfo` / `logWarn` / `logError`). Sem segredos; apenas nomes de variáveis de ambiente (presente/ausente).
+- **Run ID:** único por execução (timestamp + aleatório) para correlacionar logs e artefatos.
+- **Tempos:** `totalMs`, `llmMs`, `resendMs` em `debug/last-run.json`.
+- **Artefatos:** o workflow envia a pasta `debug/` como **debug-artifacts** (em sucesso ou falha).
+- **Step Summary:** o conteúdo de `debug/summary.md` é anexado ao Step Summary do job na interface do Actions.
 
 ---
 
-## License
+## Tipos de vídeo
 
-Private / use as you like.
+- **Seleção:** aleatória, com anti-repetição de 14 dias: tipos (e títulos/tags relacionados) dos últimos 14 dias são excluídos; um tipo é escolhido de forma uniforme entre os restantes.
+- **Fallback:** se todos os tipos estiverem excluídos ou nenhum disponível, usa-se `general_career`.
+- **Tipos válidos:** `general_frontend`, `tech_frontend`, `general_career`, `remote_work`, `life_productivity`, `learning_growth`, `mistakes_learnings`, `tech_opinion`.
+
+---
+
+## Licença
+
+Uso privado / use como quiser.
