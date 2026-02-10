@@ -29,6 +29,106 @@ A system that runs daily via **GitHub Actions**, uses the **Groq API** (OpenAI-c
 
 ---
 
+## Fluxo completo (resumo)
+
+Do cron ao relatório semanal de favoritos, passando por e-mail, issue e changelog:
+
+```mermaid
+flowchart TB
+  subgraph agendamento["⏰ Agendamento"]
+    CRON["cron Seg–Sex+Dom 9h BRT"]
+  end
+
+  CRON --> DAILY["daily.yml"]
+  DAILY --> PYT["trends.py"]
+  PYT --> TJSON["trends.json"]
+  DAILY --> DAILYJS["daily-idea.js"]
+
+  TJSON --> DAILYJS
+  DAILYJS --> GH_READ["GitHub API\n(issue history)"]
+  GH_READ --> DAILYJS
+  DAILYJS --> GROQ["Groq API\n(LLM)"]
+  GROQ --> DAILYJS
+  DAILYJS --> GH_WRITE["GitHub API\n(save history)"]
+  DAILYJS --> RESEND_DAY["Resend\n(e-mail diário)"]
+
+  subgraph mensageria["📧 Mensageria (Resend)"]
+    RESEND_DAY
+    RESEND_WEEK["Resend\n(relatório sábado)"]
+  end
+
+  RESEND_DAY --> EMAIL_DAY["E-mail com ideia\n+ botão Salvar nos Favoritos"]
+  EMAIL_DAY --> USER["Usuário"]
+  USER -->|clica no link| ISSUE["Nova issue\n(template favorite.yml)"]
+  ISSUE --> SAVE_WF["save_favorite.yml"]
+  SAVE_WF --> APPEND["append-favorite.js"]
+  APPEND --> WEEKLY_MD["favorites-weekly.md"]
+  WEEKLY_MD --> COMMIT["Commit + push"]
+  SAVE_WF --> CLOSE["Fechar issue"]
+
+  subgraph sabado["📅 Sábado 9h BRT"]
+    CRON_SAT["cron 0 12 * * 6"]
+  end
+  CRON_SAT --> WEEKLY_WF["weekly_report.yml"]
+  WEEKLY_WF --> WEEKLY_JS["weekly-report.js"]
+  WEEKLY_JS --> RESEND_WEEK
+  RESEND_WEEK --> EMAIL_WEEK["E-mail Weekly Favorites"]
+  WEEKLY_JS --> ARCHIVE["favorites-archive.md"]
+  WEEKLY_JS --> CLEAR["Limpar favorites-weekly.md"]
+  WEEKLY_WF --> COMMIT_WEEK["Commit archive + weekly"]
+```
+
+### 1. Cronjob dispara o workflow diário
+
+- **Quando:** Seg–Sex + Dom, 9h / 9h05 / 9h10 / 9h15 / 9h20 BRT (12:00–12:20 UTC). Workflow: `.github/workflows/daily.yml`.
+- **O que faz:** Faz checkout do repo, instala deps (Node + Python), roda PyTrends, depois `npm run daily` (que executa `src/daily-idea.js`).
+
+### 2. PyTrends → `trends.json`
+
+- **Script:** `trends.py` (Python). Roda **antes** do `daily-idea.js` no mesmo job.
+- **Função:** Busca Google Trends (BR + US) para palavras do nicho DEV (react, frontend, remote work, etc.). Gera `trends.json` na raiz com `related_queries`, `related_topics` e `suggestions`.
+- **Uso:** O `daily-idea.js` lê `trends.json`, monta um bloco de texto “Tendências reais DEV” e injeta no prompt da LLM para inspirar o tema do dia (sem obrigatoriedade; se falhar, o fluxo continua).
+
+### 3. `daily-idea.js` — ideia + histórico + anti-repetição + e-mail
+
+- **Histórico:** Lê a issue `daily-content-idea-history` (body = JSON com até 50 itens). Se não existir, cria. Cada ideia gerada é **prepended** e a lista é fatiada em 50.
+- **Anti-repetição:**
+  - **Janela de 14 dias:** `getRestriction14()` pega títulos, tipos e tags dos últimos 14 dias. Esses **tipos** são excluídos do sorteio do tipo do vídeo (`chooseVideoType(restriction14.types)`).
+  - **Prompt:** Recebe (1) os últimos 10 títulos/tags (“do not repeat similar themes”) e (2) um bloco explícito “RESTRIÇÕES DE NÃO REPETIÇÃO” com títulos/tipos/tags dos últimos 14 dias para não repetir temas ou ângulos.
+  - **Fallback:** Se todos os tipos estiverem excluídos, usa `general_career`.
+- **Tipo do vídeo:** Escolhido aleatoriamente entre os tipos **não** usados nos últimos 14 dias.
+- **LLM (Groq):** Gera um JSON completo (título escolhido, opções de título, thumbnail, hook, script, etc.). O prompt inclui o bloco de tendências (quando existe) e o bloco de restrições.
+- **E-mail:** Monta HTML (TL;DR, índice, blocos) e envia via Resend **uma ideia por dia** (a `chosen_title` + todo o pacote). No fim do e-mail tem o link **“⭐ Salvar nos Favoritos”**.
+
+### 4. Botão no e-mail → criar issue
+
+- **Link no e-mail:** Aponta para `https://github.com/{owner}/{repo}/issues/new?template=favorite.yml&title=Favorite:+{chosen_title}&idea_title=...`
+- **Template:** `.github/ISSUE_TEMPLATE/favorite.yml` — formulário “Save Favorite Idea” com campo *Idea title* e *Short summary*, label `favorite`.
+- **Efeito:** Ao clicar, o usuário abre o formulário de nova issue já com título “Favorite: …” e título da ideia preenchido; ao submeter, uma **issue** é criada (label `favorite` ou título começando com “Favorite:”).
+
+### 5. Workflow “Save Favorite” (issue opened)
+
+- **Quando:** `on: issues: types: [opened]` — toda vez que uma issue é aberta.
+- **Arquivo:** `.github/workflows/save_favorite.yml`.
+- **Filtro:** Só segue se a issue tiver label `favorite` **ou** título começando com “Favorite:”.
+- **Passos:** Checkout → `node scripts/append-favorite.js` (lê `ISSUE_TITLE`, `ISSUE_BODY`, `ISSUE_URL` do env injetado pelo workflow), que **adiciona um bloco** em `favorites/favorites-weekly.md` (título, data, link da issue, notas).
+- **Commit:** `git add favorites/favorites-weekly.md` → commit “Add favorite: {título}” → push.
+- **Fechamento:** Fecha a issue com `gh issue close`.
+
+### 6. Onde os favoritos ficam salvos
+
+- **Durante a semana:** Em `favorites/favorites-weekly.md`. Cada “Salvar nos Favoritos” gera um `## ⭐ …` com data, link da issue e notas. Esse arquivo é o “changelog” semanal de favoritos (atualizado por commit no `save_favorite.yml`).
+- **Arquivamento:** No sábado o `weekly_report.yml` roda e o `weekly-report.js` lê `favorites-weekly.md`, envia o e-mail “Weekly Favorites Report”, **anexa** o conteúdo da semana em `favorites/favorites-archive.md` (com cabeçalho “Week of YYYY-MM-DD”) e **limpa** o `favorites-weekly.md` (deixa só o cabeçalho). O commit “Weekly favorites: archive and clear weekly” persiste archive + weekly no repositório.
+
+### 7. Sábado: e-mail dos favoritos da semana
+
+- **Cron:** `0 12 * * 6` (sábado 12:00 UTC = 9h BRT). Workflow: `.github/workflows/weekly_report.yml`.
+- **Script:** `scripts/weekly-report.js`. Lê `favorites-weekly.md`; se houver favoritos (blocos `## ⭐`), envia e-mail via Resend com o corpo do weekly, depois anexa no archive e limpa o weekly; por fim o workflow faz o commit de `favorites/`.
+
+**Resumo anti-repetição:** (1) tipos usados nos últimos 14 dias não entram no sorteio do tipo; (2) últimos 10 títulos/tags + bloco “RESTRIÇÕES” dos últimos 14 dias no prompt para o modelo não repetir temas/ângulos; (3) fallback de tipo se tudo estiver excluído.
+
+---
+
 ## Requirements
 
 - **Node.js 20+**
